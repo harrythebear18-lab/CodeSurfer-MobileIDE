@@ -4,12 +4,20 @@
   "description": "A mobile IDE for code development on the go",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build": "expo build",
+    "build:android": "expo build:android",
+    "build:ios": "expo build:ios",
     "test": "jest",
-    "build": "webpack --mode production",
-    "lint": "eslint .",
-    "format": "prettier --write ."
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "format": "prettier --write .",
+    "type-check": "tsc --noEmit"
   },
   "keywords": [
     "mobile",

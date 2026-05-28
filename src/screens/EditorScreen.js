@@ -10,12 +10,18 @@ import {
 import { Appbar, Button, IconButton, Menu } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
+import { FileSystemService } from '../services/fileSystemService';
+import { useEffect } from 'react';
 
-const EditorScreen = ({ navigation }) => {
-  const [currentFile, setCurrentFile] = useState('untitled.js');
-  const [content, setContent] = useState('// Start coding here\n');
+const EditorScreen = ({ route, navigation }) => {
+  const { fileName, filePath } = route.params || {};
+  const [currentFile, setCurrentFile] = useState(fileName || 'untitled.js');
+  const [currentFilePath, setCurrentFilePath] = useState(filePath || null);
+  const [content, setContent] = useState('');
   const [language, setLanguage] = useState('javascript');
   const [menuVisible, setMenuVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const editorHTML = `
     <!DOCTYPE html>
@@ -70,21 +76,61 @@ const EditorScreen = ({ navigation }) => {
     </html>
   `;
 
+  const loadFile = async () => {
+    if (!currentFilePath) {
+      setContent('// Start coding here\n');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const fileContent = await FileSystemService.readFile(currentFilePath);
+      setContent(fileContent);
+      
+      // Detect language from file extension
+      const extension = FileSystemService.getFileExtension(currentFile);
+      const detectedLanguage = FileSystemService.getLanguageFromExtension(extension);
+      setLanguage(detectedLanguage);
+    } catch (error) {
+      console.error('Error loading file:', error);
+      setContent('// Error loading file\n');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFile();
+  }, [currentFilePath]);
+
   const handleWebViewMessage = (event) => {
     const data = JSON.parse(event.nativeEvent.data);
     if (data.type === 'content_change') {
       setContent(data.value);
+      setHasUnsavedChanges(true);
     }
   };
 
   const runCode = () => {
     console.log('Running code:', content);
-    // Implement code execution logic here
+    // TODO: Implement code execution logic
   };
 
-  const saveFile = () => {
-    console.log('Saving file:', currentFile, content);
-    // Implement file saving logic here
+  const saveFile = async () => {
+    try {
+      if (!currentFilePath) {
+        // Save as new file
+        // TODO: Implement save as dialog
+        console.log('Save as functionality not implemented yet');
+        return;
+      }
+
+      await FileSystemService.writeFile(currentFilePath, content);
+      setHasUnsavedChanges(false);
+      console.log('File saved successfully');
+    } catch (error) {
+      console.error('Error saving file:', error);
+    }
   };
 
   const openMenu = () => setMenuVisible(true);
@@ -102,9 +148,10 @@ const EditorScreen = ({ navigation }) => {
           onPress={runCode}
         />
         <IconButton
-          icon="content-save"
+          icon={hasUnsavedChanges ? "content-save" : "content-save-outline"}
           size={20}
           onPress={saveFile}
+          color={hasUnsavedChanges ? "#FFB74D" : undefined}
         />
         <Menu
           visible={menuVisible}

@@ -11,52 +11,58 @@ import EditorScreen from './src/screens/EditorScreen';
 import FileManagerScreen from './src/screens/FileManagerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
-// Import theme
+// Import theme and context
 import { theme } from './src/styles/theme';
+import { AppProvider } from './src/context/AppContext';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 const Stack = createStackNavigator();
 
 export default function App() {
   return (
-    <PaperProvider theme={theme}>
-      <SafeAreaProvider>
-        <NavigationContainer>
-          <StatusBar style="auto" />
-          <Stack.Navigator
-            initialRouteName="Home"
-            screenOptions={{
-              headerStyle: {
-                backgroundColor: theme.colors.primary,
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
-            }}
-          >
-            <Stack.Screen 
-              name="Home" 
-              component={HomeScreen} 
-              options={{ title: 'CodeSurfer IDE' }}
-            />
-            <Stack.Screen 
-              name="Editor" 
-              component={EditorScreen} 
-              options={{ title: 'Code Editor' }}
-            />
-            <Stack.Screen 
-              name="FileManager" 
-              component={FileManagerScreen} 
-              options={{ title: 'File Manager' }}
-            />
-            <Stack.Screen 
-              name="Settings" 
-              component={SettingsScreen} 
-              options={{ title: 'Settings' }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SafeAreaProvider>
-    </PaperProvider>
+    <ErrorBoundary>
+      <PaperProvider theme={theme}>
+        <SafeAreaProvider>
+          <AppProvider>
+            <NavigationContainer>
+              <StatusBar style="auto" />
+              <Stack.Navigator
+                initialRouteName="Home"
+                screenOptions={{
+                  headerStyle: {
+                    backgroundColor: theme.colors.primary,
+                  },
+                  headerTintColor: '#fff',
+                  headerTitleStyle: {
+                    fontWeight: 'bold',
+                  },
+                }}
+              >
+                <Stack.Screen 
+                  name="Home" 
+                  component={HomeScreen} 
+                  options={{ title: 'CodeSurfer IDE' }}
+                />
+                <Stack.Screen 
+                  name="Editor" 
+                  component={EditorScreen} 
+                  options={{ title: 'Code Editor' }}
+                />
+                <Stack.Screen 
+                  name="FileManager" 
+                  component={FileManagerScreen} 
+                  options={{ title: 'File Manager' }}
+                />
+                <Stack.Screen 
+                  name="Settings" 
+                  component={SettingsScreen} 
+                  options={{ title: 'Settings' }}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </AppProvider>
+        </SafeAreaProvider>
+      </PaperProvider>
+    </ErrorBoundary>
   );
 }

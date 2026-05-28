@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,21 +6,17 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  TextInput,
 } from 'react-native';
 import { Appbar, Button, IconButton, FAB, Portal, Modal } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import { FileSystemService } from '../services/fileSystemService';
 
 const FileManagerScreen = ({ navigation }) => {
-  const [files, setFiles] = useState([
-    { id: 1, name: 'src', type: 'folder', size: '-', modified: '2024-05-28' },
-    { id: 2, name: 'package.json', type: 'file', size: '2.1 KB', modified: '2024-05-28' },
-    { id: 3, name: 'README.md', type: 'file', size: '4.5 KB', modified: '2024-05-28' },
-    { id: 4, name: 'App.js', type: 'file', size: '1.2 KB', modified: '2024-05-28' },
-    { id: 5, name: 'assets', type: 'folder', size: '-', modified: '2024-05-28' },
-    { id: 6, name: 'docs', type: 'folder', size: '-', modified: '2024-05-28' },
-  ]);
-
-  const [currentPath, setCurrentPath] = useState('/');
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentPath, setCurrentPath] = useState(FileSystem.documentDirectory);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newFileName, setNewFileName] = useState('');
@@ -54,12 +50,28 @@ const FileManagerScreen = ({ navigation }) => {
     }
   };
 
-  const handleFilePress = (file) => {
-    if (file.type === 'folder') {
-      setCurrentPath(`${currentPath}${file.name}/`);
-      // In a real app, you would load the files for this folder
+  const loadFiles = async () => {
+    try {
+      setLoading(true);
+      const fileData = await FileSystemService.getDirectoryContents(currentPath);
+      setFiles(fileData);
+    } catch (error) {
+      console.error('Error loading files:', error);
+      Alert.alert('Error', 'Failed to load files');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFiles();
+  }, [currentPath]);
+
+  const handleFilePress = async (file) => {
+    if (file.isDirectory) {
+      setCurrentPath(file.path + '/');
     } else {
-      navigation.navigate('Editor', { fileName: file.name });
+      navigation.navigate('Editor', { fileName: file.name, filePath: file.path });
     }
   };
 
@@ -72,27 +84,32 @@ const FileManagerScreen = ({ navigation }) => {
     }
   };
 
-  const createNewItem = () => {
+  const createNewItem = async () => {
     if (!newFileName.trim()) {
       Alert.alert('Error', 'Please enter a name');
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      name: newFileName,
-      type: newFileType,
-      size: newFileType === 'file' ? '0 KB' : '-',
-      modified: new Date().toISOString().split('T')[0],
-    };
-
-    setFiles([newItem, ...files]);
-    setCreateModalVisible(false);
-    setNewFileName('');
-    setNewFileType('file');
+    try {
+      const itemPath = `${currentPath}${newFileName}`;
+      
+      if (newFileType === 'file') {
+        await FileSystemService.createFile(itemPath, '');
+      } else {
+        await FileSystemService.createDirectory(itemPath);
+      }
+      
+      await loadFiles();
+      setCreateModalVisible(false);
+      setNewFileName('');
+      setNewFileType('file');
+    } catch (error) {
+      console.error('Error creating item:', error);
+      Alert.alert('Error', 'Failed to create ' + newFileType);
+    }
   };
 
-  const deleteSelectedFiles = () => {
+  const deleteSelectedFiles = async () => {
     if (selectedFiles.length === 0) return;
 
     Alert.alert(
@@ -103,9 +120,20 @@ const FileManagerScreen = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setFiles(files.filter(file => !selectedFiles.includes(file.id)));
-            setSelectedFiles([]);
+          onPress: async () => {
+            try {
+              for (const fileId of selectedFiles) {
+                const file = files.find(f => f.id === fileId);
+                if (file) {
+                  await FileSystemService.deleteFileOrDirectory(file.path);
+                }
+              }
+              await loadFiles();
+              setSelectedFiles([]);
+            } catch (error) {
+              console.error('Error deleting files:', error);
+              Alert.alert('Error', 'Failed to delete some files');
+            }
           },
         },
       ]
