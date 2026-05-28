@@ -1,0 +1,20 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="512" cy="512" r="512" fill="#1E1E1E"/>
+  
+  <!-- Code brackets -->
+  <path d="M256 256 L128 512 L256 768" stroke="#2196F3" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M768 256 L896 512 L768 768" stroke="#2196F3" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Code lines -->
+  <rect x="320" y="384" width="384" height="32" fill="#4CAF50"/>
+  <rect x="320" y="448" width="320" height="32" fill="#FF9800"/>
+  <rect x="320" y="512" width="352" height="32" fill="#2196F3"/>
+  <rect x="320" y="576" width="288" height="32" fill="#F44336"/>
+  
+  <!-- Mobile device outline -->
+  <rect x="224" y="128" width="576" height="768" rx="32" stroke="#FFFFFF" stroke-width="16" fill="none"/>
+  
+  <!-- CS logo text -->
+  <text x="512" y="896" font-family="Arial, sans-serif" font-size="64" font-weight="bold" text-anchor="middle" fill="#FFFFFF">CS</text>
+</svg>

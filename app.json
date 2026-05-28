@@ -40,7 +40,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "codesurfer-mobileide-prod"
       }
     }
   }
