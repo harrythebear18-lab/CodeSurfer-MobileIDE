@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { FileSystemService } from '../services/fileSystemService';
 import { ProjectService } from '../services/projectService';
+import { RealAuthService } from '../services/realAuthService';
 
 // Initial state
 const initialState = {
@@ -21,6 +22,11 @@ const initialState = {
   currentProject: null,
   recentProjects: [],
   projectFiles: [],
+  
+  // Authentication state
+  user: null,
+  isAuthenticated: false,
+  authLoading: false,
   
   // Settings state
   settings: {
@@ -62,6 +68,12 @@ const ActionTypes = {
   SET_RECENT_PROJECTS: 'SET_RECENT_PROJECTS',
   SET_PROJECT_FILES: 'SET_PROJECT_FILES',
   ADD_RECENT_PROJECT: 'ADD_RECENT_PROJECT',
+  
+  // Authentication actions
+  SET_USER: 'SET_USER',
+  SET_AUTHENTICATED: 'SET_AUTHENTICATED',
+  SET_AUTH_LOADING: 'SET_AUTH_LOADING',
+  SIGN_OUT: 'SIGN_OUT',
   
   // Settings actions
   UPDATE_SETTINGS: 'UPDATE_SETTINGS',
@@ -226,6 +238,12 @@ export const actions = {
   setProjectFiles: (files) => ({ type: ActionTypes.SET_PROJECT_FILES, payload: files }),
   addRecentProject: (project) => ({ type: ActionTypes.ADD_RECENT_PROJECT, payload: project }),
   
+  // Authentication actions
+  setUser: (user) => ({ type: ActionTypes.SET_USER, payload: user }),
+  setAuthenticated: (isAuthenticated) => ({ type: ActionTypes.SET_AUTHENTICATED, payload: isAuthenticated }),
+  setAuthLoading: (loading) => ({ type: ActionTypes.SET_AUTH_LOADING, payload: loading }),
+  signOut: () => ({ type: ActionTypes.SIGN_OUT }),
+  
   // Settings actions
   updateSettings: (settings) => ({ type: ActionTypes.UPDATE_SETTINGS, payload: settings }),
   setSetting: (key, value) => ({ type: ActionTypes.SET_SETTING, payload: { key, value } }),
@@ -242,22 +260,86 @@ export const AppContext = createContext();
 export const AppProvider = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
   
-  // Load recent projects on app start
+  // Load recent projects and check authentication on app start
   useEffect(() => {
-    const loadRecentProjects = async () => {
+    const initializeApp = async () => {
       try {
+        // Check if user is already authenticated
+        dispatch(actions.setAuthLoading(true));
+        const user = await RealAuthService.getCurrentUser();
+        if (user) {
+          dispatch(actions.setUser(user));
+          dispatch(actions.setAuthenticated(true));
+        }
+        
+        // Load recent projects
         const projects = await FileSystemService.getRecentProjects();
         dispatch(actions.setRecentProjects(projects));
       } catch (error) {
-        console.error('Error loading recent projects:', error);
+        console.error('Error initializing app:', error);
+      } finally {
+        dispatch(actions.setAuthLoading(false));
       }
     };
     
-    loadRecentProjects();
+    initializeApp();
   }, []);
   
   // Thunk actions (async operations)
   const thunks = {
+    // Authentication thunks
+    signIn: async (email, password) => {
+      try {
+        dispatch(actions.setAuthLoading(true));
+        dispatch(actions.clearError());
+        
+        const result = await RealAuthService.signIn(email, password);
+        if (result.success) {
+          dispatch(actions.setUser(result.user));
+          dispatch(actions.setAuthenticated(true));
+        } else {
+          dispatch(actions.setError(result.error));
+        }
+        return result;
+      } catch (error) {
+        dispatch(actions.setError(error.message));
+        throw error;
+      } finally {
+        dispatch(actions.setAuthLoading(false));
+      }
+    },
+    
+    signUp: async (email, password, name) => {
+      try {
+        dispatch(actions.setAuthLoading(true));
+        dispatch(actions.clearError());
+        
+        const result = await RealAuthService.signUp(email, password, name);
+        if (result.success) {
+          dispatch(actions.setUser(result.user));
+          dispatch(actions.setAuthenticated(true));
+        } else {
+          dispatch(actions.setError(result.error));
+        }
+        return result;
+      } catch (error) {
+        dispatch(actions.setError(error.message));
+        throw error;
+      } finally {
+        dispatch(actions.setAuthLoading(false));
+      }
+    },
+    
+    signOut: async () => {
+      try {
+        await RealAuthService.signOut();
+        dispatch(actions.setUser(null));
+        dispatch(actions.setAuthenticated(false));
+      } catch (error) {
+        console.error('Error signing out:', error);
+      }
+    },
+    
     // File system thunks
     loadFiles: async (path) => {
       try {

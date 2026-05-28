@@ -6,11 +6,17 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 
 // Import screens
+import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import EditorScreen from './src/screens/EditorScreen';
 import FileManagerScreen from './src/screens/FileManagerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import CompilerScreen from './src/screens/CompilerScreen';
+import GitScreen from './src/screens/GitScreen';
+import TerminalScreen from './src/screens/TerminalScreen';
+import SearchScreen from './src/screens/SearchScreen';
+import AIDebuggerScreen from './src/screens/AIDebuggerScreen';
 
 // Import theme and context
 import { theme } from './src/styles/theme';
@@ -28,7 +34,7 @@ export default function App() {
             <NavigationContainer>
               <StatusBar style="auto" />
               <Stack.Navigator
-                initialRouteName="Home"
+                initialRouteName="Login"
                 screenOptions={{
                   headerStyle: {
                     backgroundColor: theme.colors.primary,
@@ -39,6 +45,16 @@ export default function App() {
                   },
                 }}
               >
+                <Stack.Screen 
+                  name="Login" 
+                  component={LoginScreen} 
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen 
+                  name="Register" 
+                  component={RegisterScreen} 
+                  options={{ headerShown: false }}
+                />
                 <Stack.Screen 
                   name="Home" 
                   component={HomeScreen} 
@@ -63,6 +79,26 @@ export default function App() {
                   name="Compiler" 
                   component={CompilerScreen} 
                   options={{ title: 'Android Compiler' }}
+                />
+                <Stack.Screen 
+                  name="Git" 
+                  component={GitScreen} 
+                  options={{ title: 'Git Version Control' }}
+                />
+                <Stack.Screen 
+                  name="Terminal" 
+                  component={TerminalScreen} 
+                  options={{ title: 'Terminal' }}
+                />
+                <Stack.Screen 
+                  name="Search" 
+                  component={SearchScreen} 
+                  options={{ title: 'Search & Replace' }}
+                />
+                <Stack.Screen 
+                  name="AIDebugger" 
+                  component={AIDebuggerScreen} 
+                  options={{ title: 'AI Debugger' }}
                 />
               </Stack.Navigator>
             </NavigationContainer>

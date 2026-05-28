@@ -38,7 +38,27 @@ const HomeScreen = ({ navigation }) => {
       onPress: () => navigation.navigate('FileManager'),
     },
     {
-      title: 'Android Compiler',
+      title: 'Search',
+      icon: 'search-outline',
+      onPress: () => navigation.navigate('Search'),
+    },
+    {
+      title: 'Terminal',
+      icon: 'terminal-outline',
+      onPress: () => navigation.navigate('Terminal'),
+    },
+    {
+      title: 'Git',
+      icon: 'git-branch-outline',
+      onPress: () => navigation.navigate('Git'),
+    },
+    {
+      title: 'AI Debugger',
+      icon: 'bug-outline',
+      onPress: () => navigation.navigate('AIDebugger'),
+    },
+    {
+      title: 'Compiler',
       icon: 'build-outline',
       onPress: () => navigation.navigate('Compiler'),
     },
