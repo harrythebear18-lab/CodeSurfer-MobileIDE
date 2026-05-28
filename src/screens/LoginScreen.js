@@ -9,14 +9,14 @@ import {
 import { Appbar, Button, Card, TextInput, Switch } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
-import { AdminAuthService } from '../services/adminAuthService';
+
 
 const LoginScreen = ({ navigation }) => {
   const { thunks, authLoading, error } = useAppContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isAdminMode, setIsAdminMode] = useState(false);
+  
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -27,16 +27,16 @@ const LoginScreen = ({ navigation }) => {
     try {
       let result;
       
-      if (isAdminMode) {
-        // Try admin login first
-        result = await AdminAuthService.signIn(email.trim(), password.trim());
-        
-        if (result.success) {
-          Alert.alert('Admin Access', 'Welcome back, Administrator!');
-          navigation.replace('Home');
-        } else {
-          Alert.alert('Error', 'Invalid admin credentials');
-        }
+      
+    // Regular user login only
+    const result = await thunks.signIn(email.trim(), password.trim());
+    
+    if (result.success) {
+      Alert.alert('Success', 'Login successful');
+      navigation.replace('Home');
+    } else {
+      Alert.alert('Error', result.error);
+    }
       } else {
         // Regular user login
         result = await thunks.signIn(email.trim(), password.trim());
@@ -106,14 +106,7 @@ const LoginScreen = ({ navigation }) => {
               }
             />
 
-            <View style={styles.adminToggleContainer}>
-              <Text style={styles.adminToggleText}>Admin Mode</Text>
-              <Switch
-                value={isAdminMode}
-                onValueChange={setIsAdminMode}
-                color="#2196F3"
-              />
-            </View>
+            
 
             <Button
               mode="contained"
@@ -122,7 +115,7 @@ const LoginScreen = ({ navigation }) => {
               disabled={authLoading}
               style={styles.loginButton}
             >
-              {isAdminMode ? 'Admin Login' : 'Sign In'}
+              'Sign In'
             </Button>
 
             {!isAdminMode && (

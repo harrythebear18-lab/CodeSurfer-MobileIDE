@@ -5,13 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "start:dev": "NODE_ENV=development ENABLE_ADMIN_ACCESS=true expo start",
     "start:prod": "NODE_ENV=production ENABLE_ADMIN_ACCESS=false expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo build",
-    "build:dev": "node scripts/build-dev.js",
     "build:prod": "node scripts/build-prod.js",
     "build:android": "expo build:android",
     "build:ios": "expo build:ios",
