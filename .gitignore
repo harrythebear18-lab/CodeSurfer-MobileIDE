@@ -91,6 +91,10 @@ yarn-error.*
 .env*.local
 .env
 
+# Environment-specific files (keep templates)
+.env.development
+.env.production
+
 # typescript
 *.tsbuildinfo
 

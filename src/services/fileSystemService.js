@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 import { Alert } from 'react-native';
+import { FilePermissionService } from './filePermissionService';
 
 export class FileSystemService {
   static async getDirectoryContents(path) {

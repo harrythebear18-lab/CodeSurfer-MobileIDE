@@ -6,30 +6,47 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { Appbar, Button, Card, TextInput } from 'react-native-paper';
+import { Appbar, Button, Card, TextInput, Switch } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
+import { AdminAuthService } from '../services/adminAuthService';
 
 const LoginScreen = ({ navigation }) => {
   const { thunks, authLoading, error } = useAppContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password');
+      Alert.alert('Error', 'Please enter both username and password');
       return;
     }
 
     try {
-      const result = await thunks.signIn(email.trim(), password.trim());
+      let result;
       
-      if (result.success) {
-        Alert.alert('Success', 'Login successful');
-        navigation.replace('Home');
+      if (isAdminMode) {
+        // Try admin login first
+        result = await AdminAuthService.signIn(email.trim(), password.trim());
+        
+        if (result.success) {
+          Alert.alert('Admin Access', 'Welcome back, Administrator!');
+          navigation.replace('Home');
+        } else {
+          Alert.alert('Error', 'Invalid admin credentials');
+        }
       } else {
-        Alert.alert('Error', result.error);
+        // Regular user login
+        result = await thunks.signIn(email.trim(), password.trim());
+        
+        if (result.success) {
+          Alert.alert('Success', 'Login successful');
+          navigation.replace('Home');
+        } else {
+          Alert.alert('Error', result.error);
+        }
       }
     } catch (error) {
       Alert.alert('Error', 'Login failed');
@@ -64,11 +81,11 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.cardSubtitle}>Sign in to your account</Text>
 
             <TextInput
-              label="Email"
+              label={isAdminMode ? "Username" : "Email"}
               value={email}
               onChangeText={setEmail}
               style={styles.input}
-              keyboardType="email-address"
+              keyboardType={isAdminMode ? "default" : "email-address"}
               autoCapitalize="none"
               autoCorrect={false}
               mode="outlined"
@@ -89,6 +106,15 @@ const LoginScreen = ({ navigation }) => {
               }
             />
 
+            <View style={styles.adminToggleContainer}>
+              <Text style={styles.adminToggleText}>Admin Mode</Text>
+              <Switch
+                value={isAdminMode}
+                onValueChange={setIsAdminMode}
+                color="#2196F3"
+              />
+            </View>
+
             <Button
               mode="contained"
               onPress={handleLogin}
@@ -96,18 +122,20 @@ const LoginScreen = ({ navigation }) => {
               disabled={authLoading}
               style={styles.loginButton}
             >
-              Sign In
+              {isAdminMode ? 'Admin Login' : 'Sign In'}
             </Button>
 
-            <View style={styles.forgotPasswordContainer}>
-              <Button
-                mode="text"
-                onPress={handleForgotPassword}
-                disabled={authLoading}
-              >
-                Forgot Password?
-              </Button>
-            </View>
+            {!isAdminMode && (
+              <View style={styles.forgotPasswordContainer}>
+                <Button
+                  mode="text"
+                  onPress={handleForgotPassword}
+                  disabled={authLoading}
+                >
+                  Forgot Password?
+                </Button>
+              </View>
+            )}
           </Card.Content>
         </Card>
 
@@ -182,6 +210,17 @@ const styles = StyleSheet.create({
   forgotPasswordContainer: {
     alignItems: 'center',
     marginTop: 16,
+  },
+  adminToggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  adminToggleText: {
+    color: '#FFFFFF',
+    fontSize: 16,
   },
   signupContainer: {
     flexDirection: 'row',

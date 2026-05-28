@@ -11,7 +11,8 @@ import {
 import { Appbar, Button, IconButton, FAB, Portal, Modal } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
-import { FileSystemService } from '../services/fileSystemService';
+import { SecureFileSystemService } from '../services/secureFileSystemService';
+import { FilePermissionService } from '../services/filePermissionService';
 
 const FileManagerScreen = ({ navigation }) => {
   const [files, setFiles] = useState([]);
@@ -21,6 +22,8 @@ const FileManagerScreen = ({ navigation }) => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [newFileType, setNewFileType] = useState('file');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [filePermissions, setFilePermissions] = useState({});
 
   const getFileIcon = (type, name) => {
     if (type === 'folder') {
@@ -53,10 +56,24 @@ const FileManagerScreen = ({ navigation }) => {
   const loadFiles = async () => {
     try {
       setLoading(true);
-      const fileData = await FileSystemService.getDirectoryContents(currentPath);
-      setFiles(fileData);
+      const result = await SecureFileSystemService.getDirectoryContents(currentPath);
+      
+      if (result.success) {
+        setFiles(result.files);
+        setIsAdmin(result.isAdmin);
+        
+        // Load file permissions for each file
+        const permissions = {};
+        for (const file of result.files) {
+          const fileName = file.name;
+          const filePath = file.path;
+          permissions[fileName] = await FilePermissionService.getFilePermissions(filePath, fileName);
+        }
+        setFilePermissions(permissions);
+      } else {
+        Alert.alert('Error', result.error);
+      }
     } catch (error) {
-      console.error('Error loading files:', error);
       Alert.alert('Error', 'Failed to load files');
     } finally {
       setLoading(false);
@@ -65,12 +82,35 @@ const FileManagerScreen = ({ navigation }) => {
 
   useEffect(() => {
     loadFiles();
+    checkAdminStatus();
   }, [currentPath]);
+
+  const checkAdminStatus = async () => {
+    const adminStatus = await FilePermissionService.isAdminUser();
+    setIsAdmin(adminStatus);
+    
+    // Update current path based on user permissions
+    if (!adminStatus) {
+      const userDir = await FilePermissionService.getUserAccessibleDirectory();
+      setCurrentPath(userDir);
+    }
+  };
 
   const handleFilePress = async (file) => {
     if (file.isDirectory) {
+      // Check if user can access this directory
+      if (!isAdmin && FilePermissionService.isProtectedPath(file.path)) {
+        Alert.alert('Access Denied', 'You cannot access this directory');
+        return;
+      }
       setCurrentPath(file.path + '/');
     } else {
+      // Check if user can read this file
+      const permissions = filePermissions[file.name];
+      if (!permissions || !permissions.canRead) {
+        Alert.alert('Access Denied', 'You cannot read this file');
+        return;
+      }
       navigation.navigate('Editor', { fileName: file.name, filePath: file.path });
     }
   };
