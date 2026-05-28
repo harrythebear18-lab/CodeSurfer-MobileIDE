@@ -3,6 +3,104 @@ import * as FileSystem from 'expo-file-system';
 
 export class ProjectService {
   static projectTemplates = {
+    'android': {
+      name: 'Android App',
+      description: 'Native Android application with Java/Kotlin',
+      files: {
+        'app/src/main/java/com/example/app/MainActivity.java': `package com.example.app;
+
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.TextView;
+
+public class MainActivity extends Activity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        TextView textView = new TextView(this);
+        textView.setText("Hello, Android!");
+        textView.setTextSize(24);
+        setContentView(textView);
+    }
+}`,
+        'app/src/main/res/layout/activity_main.xml': `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hello, World!"
+        android:textSize="24sp" />
+
+</LinearLayout>`,
+        'app/src/main/AndroidManifest.xml': `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.app">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+        <activity android:name=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>`,
+        'build.gradle': `apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 30
+    buildToolsVersion "30.0.3"
+
+    defaultConfig {
+        applicationId "com.example.app"
+        minSdkVersion 21
+        targetSdkVersion 30
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.3.0'
+}`,
+        'settings.gradle': `include ':app'`,
+        'gradle.properties': `# Project-wide Gradle settings.
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.enableJetifier=true`,
+        'README.md': `# Android App
+
+A native Android application created with CodeSurfer MobileIDE.
+
+## Building
+
+Use the built-in compiler to build and install this app.
+
+## Features
+
+- Native Android development
+- Java/Kotlin support
+- Gradle build system
+- ADB integration`,
+      },
+    },
     'react-native': {
       name: 'React Native App',
       description: 'Expo React Native application',

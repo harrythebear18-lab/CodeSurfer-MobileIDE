@@ -38,9 +38,9 @@ const HomeScreen = ({ navigation }) => {
       onPress: () => navigation.navigate('FileManager'),
     },
     {
-      title: 'Git Clone',
-      icon: 'git-branch-outline',
-      onPress: () => console.log('Clone repository'),
+      title: 'Android Compiler',
+      icon: 'build-outline',
+      onPress: () => navigation.navigate('Compiler'),
     },
     {
       title: 'Settings',
@@ -76,7 +76,13 @@ const HomeScreen = ({ navigation }) => {
   const openProject = async (project) => {
     try {
       await thunks.openProject(project.path);
-      navigation.navigate('FileManager');
+      
+      // Navigate to appropriate screen based on project type
+      if (project.type === 'android') {
+        navigation.navigate('Compiler', { projectPath: project.path });
+      } else {
+        navigation.navigate('FileManager');
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to open project');
     }

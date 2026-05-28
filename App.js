@@ -10,6 +10,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import EditorScreen from './src/screens/EditorScreen';
 import FileManagerScreen from './src/screens/FileManagerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import CompilerScreen from './src/screens/CompilerScreen';
 
 // Import theme and context
 import { theme } from './src/styles/theme';
@@ -57,6 +58,11 @@ export default function App() {
                   name="Settings" 
                   component={SettingsScreen} 
                   options={{ title: 'Settings' }}
+                />
+                <Stack.Screen 
+                  name="Compiler" 
+                  component={CompilerScreen} 
+                  options={{ title: 'Android Compiler' }}
                 />
               </Stack.Navigator>
             </NavigationContainer>
