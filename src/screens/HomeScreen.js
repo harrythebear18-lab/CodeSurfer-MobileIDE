@@ -64,12 +64,12 @@ const HomeScreen = ({ navigation }) => {
     },
     {
       title: 'USB OTG Companion',
-      icon: 'usb-flash',
+      icon: 'hardware-chip-outline',
       onPress: () => navigation.navigate('USBCompanion'),
     },
     {
       title: 'USB Deployment',
-      icon: 'usb-port',
+      icon: 'rocket-outline',
       onPress: () => navigation.navigate('Deployment'),
     },
     {

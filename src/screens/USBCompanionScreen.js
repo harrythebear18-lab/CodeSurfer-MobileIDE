@@ -318,7 +318,7 @@ const USBCompanionScreen = ({ navigation }) => {
             onPress={handleInstallAPK}
             disabled={!apkInfo}
           >
-            <Ionicons name="install-mobile" size={22} color="#4CAF50" />
+            <Ionicons name="download-outline" size={22} color="#4CAF50" />
             <Text style={styles.quickActionText}>Install APK</Text>
           </TouchableOpacity>
 
@@ -327,7 +327,7 @@ const USBCompanionScreen = ({ navigation }) => {
             onPress={handleSafeRemove}
             disabled={!usbConnected}
           >
-            <Ionicons name="eject" size={22} color="#F44336" />
+            <Ionicons name="exit-outline" size={22} color="#F44336" />
             <Text style={styles.quickActionText}>Safe Remove</Text>
           </TouchableOpacity>
 

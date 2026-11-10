@@ -361,7 +361,7 @@ const DeploymentScreen = ({ navigation }) => {
                 mode="outlined"
                 onPress={() => USBStorageService.installAPKFromUSB()}
                 style={styles.deployButton}
-                icon="install-mobile"
+                icon="cellphone-arrow-down"
               >
                 Install APK from USB
               </Button>
@@ -375,7 +375,7 @@ const DeploymentScreen = ({ navigation }) => {
             <Card.Title
               title="Safe USB Removal"
               titleStyle={styles.cardTitle}
-              left={(props) => <Ionicons name="eject" size={24} color="#FF9800" />}
+              left={(props) => <Ionicons name="exit-outline" size={24} color="#FF9800" />}
             />
             <Card.Content>
               <Paragraph style={styles.text}>
