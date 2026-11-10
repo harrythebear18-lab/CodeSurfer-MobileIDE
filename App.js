@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
@@ -17,13 +17,15 @@ import GitScreen from './src/screens/GitScreen';
 import TerminalScreen from './src/screens/TerminalScreen';
 import SearchScreen from './src/screens/SearchScreen';
 import AIDebuggerScreen from './src/screens/AIDebuggerScreen';
+import DeploymentScreen from './src/screens/DeploymentScreen';
+import USBCompanionScreen from './src/screens/USBCompanionScreen';
 
 // Import theme and context
 import { theme } from './src/styles/theme';
 import { AppProvider } from './src/context/AppContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
@@ -99,6 +101,16 @@ export default function App() {
                   name="AIDebugger" 
                   component={AIDebuggerScreen} 
                   options={{ title: 'AI Debugger' }}
+                />
+                <Stack.Screen 
+                  name="Deployment" 
+                  component={DeploymentScreen} 
+                  options={{ title: 'USB Deployment' }}
+                />
+                <Stack.Screen 
+                  name="USBCompanion" 
+                  component={USBCompanionScreen} 
+                  options={{ title: 'USB OTG Companion' }}
                 />
               </Stack.Navigator>
             </NavigationContainer>

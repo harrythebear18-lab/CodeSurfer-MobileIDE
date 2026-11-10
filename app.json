@@ -1,4 +1,6 @@
 {
+  "name": "CodeSurferMobileIDE",
+  "displayName": "CodeSurfer MobileIDE",
   "expo": {
     "name": "CodeSurfer MobileIDE",
     "slug": "codesurfer-mobileide",

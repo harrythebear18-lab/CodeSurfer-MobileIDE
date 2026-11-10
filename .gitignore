@@ -119,3 +119,7 @@ temp/
 # OS generated files
 Thumbs.db
 ehthumbs.db
+gradle-*.zip
+llama.cpp/
+.expo/
+node_modules/

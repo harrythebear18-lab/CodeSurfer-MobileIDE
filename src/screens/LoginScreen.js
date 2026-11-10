@@ -20,33 +20,18 @@ const LoginScreen = ({ navigation }) => {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both username and password');
+      Alert.alert('Error', 'Please enter both email and password');
       return;
     }
 
     try {
-      let result;
-      
-      
-    // Regular user login only
-    const result = await thunks.signIn(email.trim(), password.trim());
-    
-    if (result.success) {
-      Alert.alert('Success', 'Login successful');
-      navigation.replace('Home');
-    } else {
-      Alert.alert('Error', result.error);
-    }
+      const result = await thunks.signIn(email.trim(), password.trim());
+
+      if (result.success) {
+        Alert.alert('Success', 'Login successful');
+        navigation.replace('Home');
       } else {
-        // Regular user login
-        result = await thunks.signIn(email.trim(), password.trim());
-        
-        if (result.success) {
-          Alert.alert('Success', 'Login successful');
-          navigation.replace('Home');
-        } else {
-          Alert.alert('Error', result.error);
-        }
+        Alert.alert('Error', result.error);
       }
     } catch (error) {
       Alert.alert('Error', 'Login failed');
@@ -81,11 +66,11 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.cardSubtitle}>Sign in to your account</Text>
 
             <TextInput
-              label={isAdminMode ? "Username" : "Email"}
+              label="Email"
               value={email}
               onChangeText={setEmail}
               style={styles.input}
-              keyboardType={isAdminMode ? "default" : "email-address"}
+              keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
               mode="outlined"
@@ -106,8 +91,6 @@ const LoginScreen = ({ navigation }) => {
               }
             />
 
-            
-
             <Button
               mode="contained"
               onPress={handleLogin}
@@ -115,20 +98,18 @@ const LoginScreen = ({ navigation }) => {
               disabled={authLoading}
               style={styles.loginButton}
             >
-              'Sign In'
+              Sign In
             </Button>
 
-            {!isAdminMode && (
-              <View style={styles.forgotPasswordContainer}>
-                <Button
-                  mode="text"
-                  onPress={handleForgotPassword}
-                  disabled={authLoading}
-                >
-                  Forgot Password?
-                </Button>
-              </View>
-            )}
+            <View style={styles.forgotPasswordContainer}>
+              <Button
+                mode="text"
+                onPress={handleForgotPassword}
+                disabled={authLoading}
+              >
+                Forgot Password?
+              </Button>
+            </View>
           </Card.Content>
         </Card>
 

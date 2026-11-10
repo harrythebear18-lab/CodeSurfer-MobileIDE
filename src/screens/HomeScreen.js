@@ -63,6 +63,16 @@ const HomeScreen = ({ navigation }) => {
       onPress: () => navigation.navigate('Compiler'),
     },
     {
+      title: 'USB OTG Companion',
+      icon: 'usb-flash',
+      onPress: () => navigation.navigate('USBCompanion'),
+    },
+    {
+      title: 'USB Deployment',
+      icon: 'usb-port',
+      onPress: () => navigation.navigate('Deployment'),
+    },
+    {
       title: 'Settings',
       icon: 'settings-outline',
       onPress: () => navigation.navigate('Settings'),

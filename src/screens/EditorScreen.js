@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  Keyboard,
+  ScrollView,
+  TextInput,
 } from 'react-native';
-import { Appbar, Button, IconButton, Menu } from 'react-native-paper';
+import { Appbar, IconButton, Menu } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
 import { FileSystemService } from '../services/fileSystemService';
-import { useEffect } from 'react';
+import USBStorageService from '../services/usbStorageService';
 
 const EditorScreen = ({ route, navigation }) => {
   const { fileName, filePath } = route.params || {};
@@ -22,59 +22,12 @@ const EditorScreen = ({ route, navigation }) => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
+  const editorRef = useRef(null);
+  const lineNumbersRef = useRef(null);
 
-  const editorHTML = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
-      <style>
-        body, html {
-          margin: 0;
-          padding: 0;
-          height: 100%;
-          overflow: hidden;
-          background-color: #1e1e1e;
-        }
-        #editor {
-          height: 100vh;
-        }
-      </style>
-    </head>
-    <body>
-      <div id="editor"></div>
-      <script>
-        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' }});
-        require(['vs/editor/editor.main'], function() {
-          var editor = monaco.editor.create(document.getElementById('editor'), {
-            value: '${content.replace(/'/g, "\\'").replace(/\n/g, '\\n')}',
-            language: '${language}',
-            theme: 'vs-dark',
-            fontSize: 14,
-            wordWrap: 'on',
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            automaticLayout: true
-          });
-
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'content_change',
-            value: editor.getValue()
-          }));
-
-          editor.onDidChangeModelContent(function() {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'content_change',
-              value: editor.getValue()
-            }));
-          });
-        });
-      </script>
-    </body>
-    </html>
-  `;
+  const lines = content.split('\n');
+  const lineCount = lines.length;
 
   const loadFile = async () => {
     if (!currentFilePath) {
@@ -86,8 +39,7 @@ const EditorScreen = ({ route, navigation }) => {
     try {
       const fileContent = await FileSystemService.readFile(currentFilePath);
       setContent(fileContent);
-      
-      // Detect language from file extension
+
       const extension = FileSystemService.getFileExtension(currentFile);
       const detectedLanguage = FileSystemService.getLanguageFromExtension(extension);
       setLanguage(detectedLanguage);
@@ -103,29 +55,38 @@ const EditorScreen = ({ route, navigation }) => {
     loadFile();
   }, [currentFilePath]);
 
-  const handleWebViewMessage = (event) => {
-    const data = JSON.parse(event.nativeEvent.data);
-    if (data.type === 'content_change') {
-      setContent(data.value);
-      setHasUnsavedChanges(true);
+  const handleContentChange = (text) => {
+    setContent(text);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleScroll = (event) => {
+    const y = event.nativeEvent.contentOffset.y;
+    setScrollY(y);
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTo({ y, animated: false });
     }
   };
 
   const runCode = () => {
     console.log('Running code:', content);
-    // TODO: Implement code execution logic
   };
 
   const saveFile = async () => {
     try {
       if (!currentFilePath) {
-        // Save as new file
-        // TODO: Implement save as dialog
         console.log('Save as functionality not implemented yet');
         return;
       }
 
-      await FileSystemService.writeFile(currentFilePath, content);
+      const isUSBPath = currentFilePath.includes('/mnt/') || currentFilePath.includes('/storage/');
+
+      if (isUSBPath && USBStorageService.isUSBConnected()) {
+        await USBStorageService.writeFileToUSB(currentFilePath, content);
+      } else {
+        await FileSystemService.writeFile(currentFilePath, content);
+      }
+
       setHasUnsavedChanges(false);
       console.log('File saved successfully');
     } catch (error) {
@@ -135,6 +96,24 @@ const EditorScreen = ({ route, navigation }) => {
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
+
+  const renderLineNumbers = () => {
+    return (
+      <ScrollView
+        ref={lineNumbersRef}
+        scrollEnabled={false}
+        showsVerticalScrollIndicator={false}
+        style={styles.lineNumbersScroll}
+        contentContainerStyle={styles.lineNumbersContent}
+      >
+        {lines.map((_, index) => (
+          <Text key={index} style={styles.lineNumber}>
+            {index + 1}
+          </Text>
+        ))}
+      </ScrollView>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -171,30 +150,45 @@ const EditorScreen = ({ route, navigation }) => {
       </Appbar.Header>
 
       <View style={styles.editorContainer}>
-        <WebView
-          source={{ html: editorHTML }}
-          onMessage={handleWebViewMessage}
-          style={styles.webView}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={true}
-        />
+        {renderLineNumbers()}
+        <ScrollView
+          style={styles.editorScroll}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={true}
+        >
+          <TextInput
+            ref={editorRef}
+            style={styles.editorInput}
+            value={content}
+            onChangeText={handleContentChange}
+            multiline={true}
+            scrollEnabled={false}
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            keyboardType="default"
+            textAlignVertical="top"
+            placeholder=""
+            placeholderTextColor="#666666"
+          />
+        </ScrollView>
       </View>
 
       <View style={styles.bottomBar}>
         <View style={styles.statusBar}>
-          <Text style={styles.statusText}>Lines: {content.split('\n').length}</Text>
+          <Text style={styles.statusText}>Lines: {lineCount}</Text>
           <Text style={styles.statusText}>UTF-8</Text>
           <Text style={styles.statusText}>{language}</Text>
         </View>
         <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.quickAction}>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation.navigate('Git')}>
             <Ionicons name="git-branch-outline" size={20} color="#2196F3" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction}>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation.navigate('Terminal')}>
             <Ionicons name="terminal-outline" size={20} color="#2196F3" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction}>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation.navigate('Home')}>
             <Ionicons name="folder-outline" size={20} color="#2196F3" />
           </TouchableOpacity>
         </View>
@@ -214,10 +208,39 @@ const styles = StyleSheet.create({
   },
   editorContainer: {
     flex: 1,
+    flexDirection: 'row',
     backgroundColor: '#1E1E1E',
   },
-  webView: {
+  lineNumbersScroll: {
+    width: 50,
+    backgroundColor: '#1A1A1A',
+  },
+  lineNumbersContent: {
+    paddingTop: 12,
+    paddingHorizontal: 8,
+  },
+  lineNumber: {
+    color: '#555555',
+    fontSize: 14,
+    fontFamily: 'monospace',
+    lineHeight: 20,
+    textAlign: 'right',
+  },
+  editorScroll: {
     flex: 1,
+    backgroundColor: '#1E1E1E',
+  },
+  editorInput: {
+    flex: 1,
+    minHeight: '100%',
+    padding: 12,
+    paddingTop: 12,
+    backgroundColor: '#1E1E1E',
+    color: '#D4D4D4',
+    fontSize: 14,
+    fontFamily: 'monospace',
+    lineHeight: 20,
+    textAlignVertical: 'top',
   },
   bottomBar: {
     backgroundColor: '#1E1E1E',

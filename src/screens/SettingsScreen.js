@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext } from 'react';
 import {
   View,
   Text,
@@ -6,19 +6,56 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
+  Alert,
+  Share,
 } from 'react-native';
 import { Appbar, List, Button, Divider } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
+import { AppContext, actions } from '../context/AppContext';
 
 const SettingsScreen = ({ navigation }) => {
-  const [darkMode, setDarkMode] = useState(true);
-  const [autoSave, setAutoSave] = useState(true);
-  const [fontSize, setFontSize] = useState(14);
-  const [tabSize, setTabSize] = useState(4);
-  const [wordWrap, setWordWrap] = useState(true);
-  const [minimap, setMinimap] = useState(false);
-  const [autoComplete, setAutoComplete] = useState(true);
-  const [linting, setLinting] = useState(true);
+  const { state, dispatch } = useContext(AppContext);
+  const settings = state.settings;
+
+  const updateSetting = (key, value) => {
+    dispatch(actions.setSetting(key, value));
+  };
+
+  const resetSettings = () => {
+    Alert.alert(
+      'Reset Settings',
+      'Are you sure you want to reset all settings to defaults?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          onPress: () => {
+            dispatch(actions.updateSettings({
+              fontSize: 14,
+              tabSize: 4,
+              wordWrap: true,
+              minimap: false,
+              autoComplete: true,
+              linting: true,
+              darkMode: true,
+              autoSave: true,
+            }));
+          },
+        },
+      ]
+    );
+  };
+
+  const exportSettings = async () => {
+    try {
+      await Share.share({
+        message: JSON.stringify(settings, null, 2),
+        title: 'CodeSurfer Settings',
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to export settings');
+    }
+  };
 
   const settingsGroups = [
     {
@@ -27,20 +64,20 @@ const SettingsScreen = ({ navigation }) => {
         {
           key: 'fontSize',
           title: 'Font Size',
-          description: `Current: ${fontSize}px`,
+          description: `Current: ${settings.fontSize}px`,
           type: 'slider',
-          value: fontSize,
-          onValueChange: setFontSize,
+          value: settings.fontSize,
+          onValueChange: (v) => updateSetting('fontSize', v),
           min: 10,
           max: 24,
         },
         {
           key: 'tabSize',
           title: 'Tab Size',
-          description: `Spaces: ${tabSize}`,
+          description: `Spaces: ${settings.tabSize}`,
           type: 'slider',
-          value: tabSize,
-          onValueChange: setTabSize,
+          value: settings.tabSize,
+          onValueChange: (v) => updateSetting('tabSize', v),
           min: 2,
           max: 8,
         },
@@ -49,16 +86,16 @@ const SettingsScreen = ({ navigation }) => {
           title: 'Word Wrap',
           description: 'Wrap long lines',
           type: 'switch',
-          value: wordWrap,
-          onValueChange: setWordWrap,
+          value: settings.wordWrap,
+          onValueChange: (v) => updateSetting('wordWrap', v),
         },
         {
           key: 'minimap',
           title: 'Minimap',
           description: 'Show code minimap',
           type: 'switch',
-          value: minimap,
-          onValueChange: setMinimap,
+          value: settings.minimap,
+          onValueChange: (v) => updateSetting('minimap', v),
         },
       ],
     },
@@ -70,24 +107,24 @@ const SettingsScreen = ({ navigation }) => {
           title: 'Auto Save',
           description: 'Save files automatically',
           type: 'switch',
-          value: autoSave,
-          onValueChange: setAutoSave,
+          value: settings.autoSave,
+          onValueChange: (v) => updateSetting('autoSave', v),
         },
         {
           key: 'autoComplete',
           title: 'Auto Complete',
           description: 'Show code suggestions',
           type: 'switch',
-          value: autoComplete,
-          onValueChange: setAutoComplete,
+          value: settings.autoComplete,
+          onValueChange: (v) => updateSetting('autoComplete', v),
         },
         {
           key: 'linting',
           title: 'Linting',
           description: 'Check for code errors',
           type: 'switch',
-          value: linting,
-          onValueChange: setLinting,
+          value: settings.linting,
+          onValueChange: (v) => updateSetting('linting', v),
         },
       ],
     },
@@ -99,8 +136,8 @@ const SettingsScreen = ({ navigation }) => {
           title: 'Dark Mode',
           description: 'Use dark theme',
           type: 'switch',
-          value: darkMode,
-          onValueChange: setDarkMode,
+          value: settings.darkMode,
+          onValueChange: (v) => updateSetting('darkMode', v),
         },
       ],
     },
@@ -204,14 +241,14 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.actionButtons}>
           <Button
             mode="outlined"
-            onPress={() => console.log('Reset settings')}
+            onPress={resetSettings}
             style={styles.actionButton}
           >
             Reset Settings
           </Button>
           <Button
             mode="contained"
-            onPress={() => console.log('Export settings')}
+            onPress={exportSettings}
             style={styles.actionButton}
           >
             Export Settings

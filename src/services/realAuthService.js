@@ -3,61 +3,50 @@ import * as SecureStore from 'expo-secure-store';
 export class RealAuthService {
   static TOKEN_KEY = 'codesurfer_auth_token';
   static USER_KEY = 'codesurfer_user_data';
-  static REFRESH_TOKEN_KEY = 'codesurfer_refresh_token';
-
-  // Firebase Auth configuration (you'd replace this with your actual Firebase config)
-  static FIREBASE_CONFIG = {
-    apiKey: "your-firebase-api-key",
-    authDomain: "your-project.firebaseapp.com",
-    projectId: "your-project-id",
-    storageBucket: "your-project.appspot.com",
-    messagingSenderId: "123456789",
-    appId: "1:123456789:web:abcdef",
-  };
+  static USERS_DB_KEY = 'codesurfer_users_db';
 
   static async signUp(email, password, name) {
     try {
-      // Real Firebase Auth API call
-      const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: email,
-            password: password,
-            returnSecureToken: true,
-          }),
-        }
-      );
+      const users = await this.getAllUsers();
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Registration failed');
+      if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+        return {
+          success: false,
+          error: 'An account with this email already exists',
+        };
       }
 
-      // Store tokens securely
-      await SecureStore.setItemAsync(this.TOKEN_KEY, data.idToken);
-      await SecureStore.setItemAsync(this.REFRESH_TOKEN_KEY, data.refreshToken);
+      const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      const token = this.generateToken(userId);
+      const hashedPassword = await this.hashPassword(password);
 
-      // Store user data
       const userData = {
-        uid: data.localId,
-        email: data.email,
-        displayName: name,
-        emailVerified: data.emailVerified,
+        uid: userId,
+        email: email.toLowerCase(),
+        displayName: name || email.split('@')[0],
+        photoURL: null,
         createdAt: new Date().toISOString(),
+        passwordHash: hashedPassword,
       };
 
-      await SecureStore.setItemAsync(this.USER_KEY, JSON.stringify(userData));
+      users.push(userData);
+      await this.saveAllUsers(users);
+
+      const sessionUser = {
+        uid: userData.uid,
+        email: userData.email,
+        displayName: userData.displayName,
+        photoURL: userData.photoURL,
+        createdAt: userData.createdAt,
+      };
+
+      await SecureStore.setItemAsync(this.TOKEN_KEY, token);
+      await SecureStore.setItemAsync(this.USER_KEY, JSON.stringify(sessionUser));
 
       return {
         success: true,
-        user: userData,
-        token: data.idToken,
+        user: sessionUser,
+        token,
       };
     } catch (error) {
       return {
@@ -69,46 +58,41 @@ export class RealAuthService {
 
   static async signIn(email, password) {
     try {
-      // Real Firebase Auth API call
-      const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: email,
-            password: password,
-            returnSecureToken: true,
-          }),
-        }
-      );
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Sign in failed');
+      if (!user) {
+        return {
+          success: false,
+          error: 'No account found with this email',
+        };
       }
 
-      // Store tokens securely
-      await SecureStore.setItemAsync(this.TOKEN_KEY, data.idToken);
-      await SecureStore.setItemAsync(this.REFRESH_TOKEN_KEY, data.refreshToken);
+      const hashedPassword = await this.hashPassword(password);
+      if (user.passwordHash !== hashedPassword) {
+        return {
+          success: false,
+          error: 'Incorrect password',
+        };
+      }
 
-      // Store user data
-      const userData = {
-        uid: data.localId,
-        email: data.email,
-        displayName: data.displayName || email.split('@')[0],
-        emailVerified: data.emailVerified,
+      const token = this.generateToken(user.uid);
+
+      const sessionUser = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        createdAt: user.createdAt,
       };
 
-      await SecureStore.setItemAsync(this.USER_KEY, JSON.stringify(userData));
+      await SecureStore.setItemAsync(this.TOKEN_KEY, token);
+      await SecureStore.setItemAsync(this.USER_KEY, JSON.stringify(sessionUser));
 
       return {
         success: true,
-        user: userData,
-        token: data.idToken,
+        user: sessionUser,
+        token,
       };
     } catch (error) {
       return {
@@ -120,58 +104,23 @@ export class RealAuthService {
 
   static async signOut() {
     try {
-      const token = await SecureStore.getItemAsync(this.TOKEN_KEY);
-      
-      if (token) {
-        // Revoke token on server
-        await fetch(
-          `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${this.FIREBASE_CONFIG.apiKey}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              idToken: token,
-            }),
-          }
-        );
-      }
-
-      // Clear local storage
       await SecureStore.deleteItemAsync(this.TOKEN_KEY);
-      await SecureStore.deleteItemAsync(this.REFRESH_TOKEN_KEY);
       await SecureStore.deleteItemAsync(this.USER_KEY);
-
-      return {
-        success: true,
-        message: 'Signed out successfully',
-      };
+      return { success: true };
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
   }
 
   static async getCurrentUser() {
     try {
       const token = await SecureStore.getItemAsync(this.TOKEN_KEY);
-      const userData = await SecureStore.getItemAsync(this.USER_KEY);
+      if (!token) return null;
 
-      if (!token || !userData) {
-        return null;
-      }
+      const userJson = await SecureStore.getItemAsync(this.USER_KEY);
+      if (!userJson) return null;
 
-      // Verify token is still valid
-      const isValid = await this.verifyToken(token);
-      if (!isValid) {
-        await this.signOut();
-        return null;
-      }
-
-      return JSON.parse(userData);
+      return JSON.parse(userJson);
     } catch (error) {
       return null;
     }
@@ -179,20 +128,8 @@ export class RealAuthService {
 
   static async verifyToken(token) {
     try {
-      const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            idToken: token,
-          }),
-        }
-      );
-
-      return response.ok;
+      const storedToken = await SecureStore.getItemAsync(this.TOKEN_KEY);
+      return storedToken === token;
     } catch (error) {
       return false;
     }
@@ -200,73 +137,32 @@ export class RealAuthService {
 
   static async refreshToken() {
     try {
-      const refreshToken = await SecureStore.getItemAsync(this.REFRESH_TOKEN_KEY);
-      
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
+      const user = await this.getCurrentUser();
+      if (!user) return null;
 
-      const response = await fetch(
-        `https://securetoken.googleapis.com/v1/token?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Token refresh failed');
-      }
-
-      // Store new tokens
-      await SecureStore.setItemAsync(this.TOKEN_KEY, data.id_token);
-      await SecureStore.setItemAsync(this.REFRESH_TOKEN_KEY, data.refresh_token);
-
-      return {
-        success: true,
-        token: data.id_token,
-      };
+      const newToken = this.generateToken(user.uid);
+      await SecureStore.setItemAsync(this.TOKEN_KEY, newToken);
+      return newToken;
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
+      return null;
     }
   }
 
   static async resetPassword(email) {
     try {
-      const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            requestType: 'PASSWORD_RESET',
-            email: email,
-          }),
-        }
-      );
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Password reset failed');
+      if (!user) {
+        return {
+          success: false,
+          error: 'No account found with this email',
+        };
       }
 
       return {
         success: true,
-        message: 'Password reset email sent',
+        message: 'Password reset available in offline mode — use change password in settings',
       };
     } catch (error) {
       return {
@@ -276,227 +172,156 @@ export class RealAuthService {
     }
   }
 
-  static async updateProfile(displayName, photoURL) {
+  static async updateProfile(updates) {
     try {
-      const token = await SecureStore.getItemAsync(this.TOKEN_KEY);
-      
-      if (!token) {
-        throw new Error('Not authenticated');
+      const userJson = await SecureStore.getItemAsync(this.USER_KEY);
+      if (!userJson) {
+        return { success: false, error: 'Not authenticated' };
       }
 
-      const userData = await this.getCurrentUser();
-      if (!userData) {
-        throw new Error('User not found');
+      const currentUser = JSON.parse(userJson);
+      const updatedUser = { ...currentUser, ...updates };
+
+      await SecureStore.setItemAsync(this.USER_KEY, JSON.stringify(updatedUser));
+
+      const users = await this.getAllUsers();
+      const userIndex = users.findIndex(u => u.uid === currentUser.uid);
+      if (userIndex >= 0) {
+        users[userIndex] = { ...users[userIndex], ...updates };
+        await this.saveAllUsers(users);
       }
 
-      const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            idToken: token,
-            displayName: displayName,
-            photoUrl: photoURL,
-            returnSecureToken: true,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Profile update failed');
-      }
-
-      // Update stored user data
-      const updatedUserData = {
-        ...userData,
-        displayName: displayName || userData.displayName,
-        photoURL: photoURL || userData.photoURL,
-      };
-
-      await SecureStore.setItemAsync(this.USER_KEY, JSON.stringify(updatedUserData));
-
-      return {
-        success: true,
-        user: updatedUserData,
-      };
+      return { success: true, user: updatedUser };
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
   }
 
   static async changeEmail(newEmail, password) {
     try {
-      const token = await SecureStore.getItemAsync(this.TOKEN_KEY);
-      
-      if (!token) {
-        throw new Error('Not authenticated');
+      const userJson = await SecureStore.getItemAsync(this.USER_KEY);
+      if (!userJson) {
+        return { success: false, error: 'Not authenticated' };
       }
 
-      const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            idToken: token,
-            email: newEmail,
-            password: password,
-            returnSecureToken: true,
-          }),
-        }
-      );
+      const currentUser = JSON.parse(userJson);
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.uid === currentUser.uid);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Email change failed');
+      if (!user) {
+        return { success: false, error: 'User not found' };
       }
 
-      // Update stored user data
-      const userData = await this.getCurrentUser();
-      if (userData) {
-        const updatedUserData = {
-          ...userData,
-          email: newEmail,
-          emailVerified: false, // New email needs verification
-        };
-
-        await SecureStore.setItemAsync(this.USER_KEY, JSON.stringify(updatedUserData));
+      const hashedPassword = await this.hashPassword(password);
+      if (user.passwordHash !== hashedPassword) {
+        return { success: false, error: 'Incorrect password' };
       }
 
-      return {
-        success: true,
-        message: 'Email change initiated. Please check your new email for verification.',
-      };
+      if (users.find(u => u.email.toLowerCase() === newEmail.toLowerCase() && u.uid !== user.uid)) {
+        return { success: false, error: 'Email already in use' };
+      }
+
+      user.email = newEmail.toLowerCase();
+      await this.saveAllUsers(users);
+
+      const updatedUser = { ...currentUser, email: newEmail.toLowerCase() };
+      await SecureStore.setItemAsync(this.USER_KEY, JSON.stringify(updatedUser));
+
+      return { success: true, user: updatedUser };
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
   }
 
   static async changePassword(currentPassword, newPassword) {
     try {
-      const token = await SecureStore.getItemAsync(this.TOKEN_KEY);
-      
-      if (!token) {
-        throw new Error('Not authenticated');
+      const userJson = await SecureStore.getItemAsync(this.USER_KEY);
+      if (!userJson) {
+        return { success: false, error: 'Not authenticated' };
       }
 
-      const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            idToken: token,
-            password: newPassword,
-            returnSecureToken: true,
-          }),
-        }
-      );
+      const currentUser = JSON.parse(userJson);
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.uid === currentUser.uid);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Password change failed');
+      if (!user) {
+        return { success: false, error: 'User not found' };
       }
 
-      return {
-        success: true,
-        message: 'Password changed successfully',
-      };
+      const hashedCurrentPassword = await this.hashPassword(currentPassword);
+      if (user.passwordHash !== hashedCurrentPassword) {
+        return { success: false, error: 'Current password is incorrect' };
+      }
+
+      user.passwordHash = await this.hashPassword(newPassword);
+      await this.saveAllUsers(users);
+
+      return { success: true };
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
   }
 
   static async deleteAccount(password) {
     try {
-      const token = await SecureStore.getItemAsync(this.TOKEN_KEY);
-      
-      if (!token) {
-        throw new Error('Not authenticated');
+      const userJson = await SecureStore.getItemAsync(this.USER_KEY);
+      if (!userJson) {
+        return { success: false, error: 'Not authenticated' };
       }
 
-      const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${this.FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            idToken: token,
-          }),
-        }
-      );
+      const currentUser = JSON.parse(userJson);
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.uid === currentUser.uid);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Account deletion failed');
+      if (!user) {
+        return { success: false, error: 'User not found' };
       }
 
-      // Sign out and clear local data
-      await this.signOut();
+      const hashedPassword = await this.hashPassword(password);
+      if (user.passwordHash !== hashedPassword) {
+        return { success: false, error: 'Incorrect password' };
+      }
 
-      return {
-        success: true,
-        message: 'Account deleted successfully',
-      };
+      const filteredUsers = users.filter(u => u.uid !== currentUser.uid);
+      await this.saveAllUsers(filteredUsers);
+
+      await SecureStore.deleteItemAsync(this.TOKEN_KEY);
+      await SecureStore.deleteItemAsync(this.USER_KEY);
+
+      return { success: true };
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
   }
 
-  static async isAuthenticated() {
+  static async getAllUsers() {
     try {
-      const token = await SecureStore.getItemAsync(this.TOKEN_KEY);
-      return token && await this.verifyToken(token);
+      const usersJson = await SecureStore.getItemAsync(this.USERS_DB_KEY);
+      if (!usersJson) return [];
+      return JSON.parse(usersJson);
     } catch (error) {
-      return false;
+      return [];
     }
   }
 
-  static async onAuthStateChanged(callback) {
-    // This would typically be handled by Firebase SDK's onAuthStateChanged
-    // For manual implementation, we'll check token validity periodically
-    let lastToken = await SecureStore.getItemAsync(this.TOKEN_KEY);
-    
-    const checkAuth = async () => {
-      const currentToken = await SecureStore.getItemAsync(this.TOKEN_KEY);
-      
-      if (currentToken !== lastToken) {
-        lastToken = currentToken;
-        const user = currentToken ? await this.getCurrentUser() : null;
-        callback(user);
-      }
-    };
+  static async saveAllUsers(users) {
+    await SecureStore.setItemAsync(this.USERS_DB_KEY, JSON.stringify(users));
+  }
 
-    // Set up interval to check auth state
-    const interval = setInterval(checkAuth, 5000);
+  static generateToken(userId) {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 16);
+    return `${userId}_${timestamp}_${random}`;
+  }
 
-    // Return cleanup function
-    return () => clearInterval(interval);
+  static async hashPassword(password) {
+    let hash = 0;
+    const str = password + 'codesurfer_salt_2024';
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return 'h' + Math.abs(hash).toString(36);
   }
 }

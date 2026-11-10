@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="abc_edit_text_inset_horizontal">4dp</dimen>
+    <dimen name="abc_edit_text_inset_vertical">2dp</dimen>
+    <dimen name="abc_edit_text_inset_top">8dp</dimen>
+    <dimen name="abc_edit_text_inset_bottom">8dp</dimen>
+    <dimen name="abc_edit_text_disabled_alpha">0.5</dimen>
+</resources>

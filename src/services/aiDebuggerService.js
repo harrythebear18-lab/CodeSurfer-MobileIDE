@@ -1,11 +1,9 @@
 import * as FileSystem from 'expo-file-system';
 import { FileSystemService } from './fileSystemService';
-import { RealCompilerService } from './realCompilerService';
+import AIBridgeService from './AIBridgeService';
 
 export class AIDebuggerService {
   static DEBUG_SESSIONS = new Map();
-  static AI_ASSISTANT_URL = 'https://api.openai.com/v1/chat/completions';
-  static AI_MODEL = 'gpt-4';
 
   static async createAIDebugSession(filePath, language, workingDirectory) {
     try {
@@ -112,13 +110,10 @@ Format your response as JSON:
 
   static async callAI(prompt) {
     try {
-      // In a real implementation, this would call OpenAI API
-      // For now, we'll simulate AI response
-      const mockResponse = this.mockAIResponse(prompt);
-      
+      const result = await AIBridgeService.chat(prompt, [], 500);
       return {
-        success: true,
-        content: mockResponse,
+        success: result.success,
+        content: result.content,
       };
     } catch (error) {
       return {
@@ -126,40 +121,6 @@ Format your response as JSON:
         error: error.message,
       };
     }
-  }
-
-  static mockAIResponse(prompt) {
-    // Simulate AI response based on prompt content
-    if (prompt.includes('potentialBugs')) {
-      return JSON.stringify({
-        potentialBugs: [
-          { line: 5, issue: "Variable used before initialization", severity: "high" },
-          { line: 12, issue: "Possible null reference", severity: "medium" },
-          { line: 18, issue: "Infinite loop condition", severity: "high" },
-        ],
-        suggestedBreakpoints: [
-          { line: 5, reason: "Check variable initialization" },
-          { line: 12, reason: "Validate null reference" },
-          { line: 18, reason: "Monitor loop condition" },
-        ],
-        codeQuality: [
-          { line: 8, issue: "Function too long", suggestion: "Break into smaller functions" },
-          { line: 15, issue: "Magic number", suggestion: "Use named constant" },
-        ],
-        performance: [
-          { line: 22, issue: "Inefficient loop", optimization: "Use for...of instead" },
-        ],
-        security: [
-          { line: 25, issue: "Unvalidated input", fix: "Add input validation" },
-        ],
-        bestPractices: [
-          { line: 3, practice: "Add error handling", implementation: "Try-catch block" },
-          { line: 10, practice: "Use const instead of let", implementation: "Change to const" },
-        ],
-      });
-    }
-    
-    return '{ "analysis": "Mock AI analysis completed" }';
   }
 
   static parseCodeAnalysis(aiContent) {
