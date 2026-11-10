@@ -44,6 +44,7 @@ public class QwenCoderEngineBridge {
     }
 
     private static QwenCoderEngineBridge instance;
+    private static final String DEFAULT_MODEL_FILE = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf";
 
     // One shared engine: the native side holds a single global model.
     public static synchronized QwenCoderEngineBridge getInstance(Context context) {
@@ -78,7 +79,7 @@ public class QwenCoderEngineBridge {
         modelPath = findModel(true);
 
         if (modelPath == null || !new File(modelPath).exists()) {
-            throw new Exception("Qwen model file not found. Place qwen2.5-coder-7b.gguf in app storage or USB OTG /models/.");
+            throw new Exception("No AI model found. Download one in AI Chat, or put a .gguf file in a models folder on the USB drive.");
         }
 
         boolean success;
@@ -184,6 +185,12 @@ public class QwenCoderEngineBridge {
         File internalModel = new File(context.getFilesDir(), "models/qwen2.5-coder-7b.gguf");
         if (internalModel.exists()) {
             return internalModel.getAbsolutePath();
+        }
+
+        // 2b. Default 1.5B model, downloaded in-app or extracted from assets earlier
+        File defaultModel = new File(context.getFilesDir(), "models/" + DEFAULT_MODEL_FILE);
+        if (defaultModel.exists()) {
+            return defaultModel.getAbsolutePath();
         }
 
         // 3. Try to extract from assets

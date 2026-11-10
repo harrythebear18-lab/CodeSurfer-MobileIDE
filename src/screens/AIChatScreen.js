@@ -18,14 +18,21 @@ import * as FileSystem from 'expo-file-system';
 
 const { QwenCoderModule } = NativeModules;
 
+const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
+// File names must match QwenCoderEngineBridge.findModel()
+const SMALL_MODEL = {
+  label: 'Qwen2.5-Coder 1.5B',
+  url: 'https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf',
+  sizeBytes: 1117320768,
+  path: `${MODELS_DIR}qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`,
+};
 const LARGE_MODEL = {
   label: 'Qwen2.5-Coder 7B',
   url: 'https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf',
   sizeBytes: 4683073536,
+  path: `${MODELS_DIR}qwen2.5-coder-7b.gguf`,
 };
-const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
-const LARGE_MODEL_PATH = `${MODELS_DIR}qwen2.5-coder-7b.gguf`;
-const LARGE_MODEL_PART = `${LARGE_MODEL_PATH}.part`;
+const partPath = (model) => `${model.path}.part`;
 const HISTORY_TURNS = 2;
 
 const formatGB = (bytes) => `${(bytes / 1e9).toFixed(1)} GB`;
@@ -33,18 +40,18 @@ const formatGB = (bytes) => `${(bytes / 1e9).toFixed(1)} GB`;
 const modelLabel = (name) => {
   if (!name) return 'No model';
   if (name === 'qwen2.5-coder-7b.gguf') return 'Qwen2.5-Coder 7B';
-  if (name.startsWith('qwen2.5-coder-1.5b')) return 'Qwen2.5-Coder 1.5B (built-in)';
+  if (name.startsWith('qwen2.5-coder-1.5b')) return 'Qwen2.5-Coder 1.5B';
   return name;
 };
 
 const AIChatScreen = () => {
   const [status, setStatus] = useState(null);
-  const [engineState, setEngineState] = useState('idle'); // idle | loading | ready | error
+  const [engineState, setEngineState] = useState('idle'); // idle | nomodel | loading | ready | error
   const [engineError, setEngineError] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [download, setDownload] = useState(null); // { progress } while downloading
+  const [download, setDownload] = useState(null); // { model, progress } while downloading
   const downloadRef = useRef(null);
   const listRef = useRef(null);
 
@@ -76,10 +83,14 @@ const AIChatScreen = () => {
 
   useEffect(() => {
     (async () => {
-      await FileSystem.deleteAsync(LARGE_MODEL_PART, { idempotent: true }).catch(() => {});
+      for (const m of [SMALL_MODEL, LARGE_MODEL]) {
+        await FileSystem.deleteAsync(partPath(m), { idempotent: true }).catch(() => {});
+      }
       const s = await refreshStatus().catch(() => null);
       if (s && s.initialized) {
         setEngineState('ready');
+      } else if (s && !s.modelFound) {
+        setEngineState('nomodel');
       } else {
         loadEngine(false);
       }
@@ -91,20 +102,21 @@ const AIChatScreen = () => {
 
   const hasLargeModel = status?.modelName === 'qwen2.5-coder-7b.gguf';
 
-  const startLargeDownload = async () => {
+  const startDownload = async (model) => {
+    const part = partPath(model);
     try {
       const free = await FileSystem.getFreeDiskStorageAsync();
-      if (free < LARGE_MODEL.sizeBytes + 500e6) {
-        Alert.alert('Not enough space', `Needs about ${formatGB(LARGE_MODEL.sizeBytes)} free; you have ${formatGB(free)}.`);
+      if (free < model.sizeBytes + 500e6) {
+        Alert.alert('Not enough space', `Needs about ${formatGB(model.sizeBytes)} free; you have ${formatGB(free)}.`);
         return;
       }
       await FileSystem.makeDirectoryAsync(MODELS_DIR, { intermediates: true }).catch(() => {});
-      setDownload({ progress: 0 });
+      setDownload({ model, progress: 0 });
       const resumable = FileSystem.createDownloadResumable(
-        LARGE_MODEL.url,
-        LARGE_MODEL_PART,
+        model.url,
+        part,
         {},
-        ({ totalBytesWritten }) => setDownload({ progress: totalBytesWritten / LARGE_MODEL.sizeBytes })
+        ({ totalBytesWritten }) => setDownload({ model, progress: totalBytesWritten / model.sizeBytes })
       );
       downloadRef.current = resumable;
       const result = await resumable.downloadAsync();
@@ -113,12 +125,12 @@ const AIChatScreen = () => {
         setDownload(null);
         return;
       }
-      const info = await FileSystem.getInfoAsync(LARGE_MODEL_PART);
-      if (!info.exists || info.size !== LARGE_MODEL.sizeBytes) {
-        await FileSystem.deleteAsync(LARGE_MODEL_PART, { idempotent: true });
+      const info = await FileSystem.getInfoAsync(part);
+      if (!info.exists || info.size !== model.sizeBytes) {
+        await FileSystem.deleteAsync(part, { idempotent: true });
         throw new Error('Download was incomplete. Try again on a stable connection.');
       }
-      await FileSystem.moveAsync({ from: LARGE_MODEL_PART, to: LARGE_MODEL_PATH });
+      await FileSystem.moveAsync({ from: part, to: model.path });
       setDownload(null);
       await loadEngine(true);
     } catch (e) {
@@ -133,18 +145,18 @@ const AIChatScreen = () => {
       await downloadRef.current.pauseAsync().catch(() => {});
       downloadRef.current = null;
     }
-    await FileSystem.deleteAsync(LARGE_MODEL_PART, { idempotent: true }).catch(() => {});
+    if (download) await FileSystem.deleteAsync(partPath(download.model), { idempotent: true }).catch(() => {});
     setDownload(null);
   };
 
   const removeLargeModel = () => {
-    Alert.alert('Remove 7B model?', 'The app will go back to the built-in 1.5B model.', [
+    Alert.alert('Remove 7B model?', 'The app will go back to the 1.5B model.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
         style: 'destructive',
         onPress: async () => {
-          await FileSystem.deleteAsync(LARGE_MODEL_PATH, { idempotent: true });
+          await FileSystem.deleteAsync(LARGE_MODEL.path, { idempotent: true });
           await loadEngine(true);
         },
       },
@@ -191,9 +203,13 @@ const AIChatScreen = () => {
     if (engineState === 'idle') {
       color = '#AAA';
       line = 'Checking...';
+    } else if (engineState === 'nomodel') {
+      icon = 'cloud-download-outline';
+      color = '#FF9800';
+      line = 'No model yet';
     } else if (engineState === 'loading') {
       color = '#FF9800';
-      line = 'Loading model... (first launch unpacks it, ~30s)';
+      line = 'Loading model...';
     } else if (engineState === 'error') {
       icon = 'alert-circle-outline';
       color = '#F44336';
@@ -217,19 +233,25 @@ const AIChatScreen = () => {
         {download ? (
           <View style={styles.downloadBox}>
             <Text style={styles.dim}>
-              Downloading {LARGE_MODEL.label}: {Math.floor(download.progress * 100)}% of {formatGB(LARGE_MODEL.sizeBytes)}. Keep the app open.
+              Downloading {download.model.label}: {Math.floor(download.progress * 100)}% of {formatGB(download.model.sizeBytes)}. Keep the app open.
             </Text>
             <ProgressBar progress={download.progress} color="#2196F3" style={styles.progress} />
             <TouchableOpacity onPress={cancelDownload}>
               <Text style={styles.link}>Cancel</Text>
             </TouchableOpacity>
           </View>
+        ) : engineState === 'nomodel' ? (
+          <TouchableOpacity style={styles.primaryButton} onPress={() => startDownload(SMALL_MODEL)}>
+            <Text style={styles.primaryButtonText}>
+              Download {SMALL_MODEL.label} ({formatGB(SMALL_MODEL.sizeBytes)}, one time)
+            </Text>
+          </TouchableOpacity>
         ) : hasLargeModel ? (
           <TouchableOpacity onPress={removeLargeModel} disabled={busy}>
             <Text style={styles.link}>Remove 7B and use built-in 1.5B</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity onPress={startLargeDownload} disabled={busy || engineState === 'loading'}>
+          <TouchableOpacity onPress={() => startDownload(LARGE_MODEL)} disabled={busy || engineState === 'loading'}>
             <Text style={styles.link}>
               Download {LARGE_MODEL.label} ({formatGB(LARGE_MODEL.sizeBytes)}, smarter but slower)
             </Text>
@@ -305,6 +327,8 @@ const styles = StyleSheet.create({
   statusText: { flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '600' },
   errorText: { color: '#F44336', marginTop: 6, fontSize: 13 },
   link: { color: '#2196F3', marginTop: 8, fontSize: 14 },
+  primaryButton: { backgroundColor: '#2196F3', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, marginTop: 10, alignItems: 'center' },
+  primaryButtonText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
   dim: { color: '#AAA', fontSize: 13 },
   downloadBox: { marginTop: 8 },
   progress: { marginTop: 8, height: 6, borderRadius: 3 },

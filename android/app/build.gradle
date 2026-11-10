@@ -136,15 +136,17 @@ android {
     androidResources {
         noCompress 'gguf'
     }
-    sourceSets {
-        main {
-            assets.srcDirs += "$buildDir/generated/qwen-model"
+    if (findProperty("bundleModel")?.toBoolean()) {
+        sourceSets {
+            main {
+                assets.srcDirs += "$buildDir/generated/qwen-model"
+            }
         }
     }
 }
 
-// Bundled on-device model: downloaded at build time (too big for git), checked against a pinned SHA-256.
-// Build with -PskipBundledModel=true for a small APK without it.
+// Optional bundled model (APK grows to ~1.2 GB): build with -PbundleModel=true.
+// Default builds stay small and the AI Chat screen downloads the model on first use.
 def bundledModelUrl = "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 def bundledModelSha256 = "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046"
 def bundledModelFile = file("$buildDir/generated/qwen-model/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")
@@ -161,7 +163,7 @@ def sha256Of = { File f ->
 
 tasks.register("downloadBundledModel") {
     outputs.file(bundledModelFile)
-    onlyIf { !(findProperty("skipBundledModel")?.toBoolean() ?: false) }
+    onlyIf { findProperty("bundleModel")?.toBoolean() ?: false }
     doLast {
         if (bundledModelFile.exists() && sha256Of(bundledModelFile) == bundledModelSha256) {
             return

@@ -12,8 +12,8 @@ No prebuilt `.so` files are needed in `jniLibs/`.
 
 ## Model
 
-Qwen2.5-Coder-1.5B-Instruct Q4_K_M (~1.1 GB) is bundled in the APK: the Gradle task `downloadBundledModel` fetches it into `build/generated/qwen-model/models/` (SHA-256 pinned) and it is packed uncompressed into `assets/models/`. On first use it is extracted to internal `files/models/`. Build with `-PskipBundledModel=true` to leave it out.
+By default the APK has no model; the AI Chat screen offers a one-tap download of Qwen2.5-Coder-1.5B-Instruct Q4_K_M (~1.1 GB) to internal `files/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`. Build with `-PbundleModel=true` to bundle it instead: the Gradle task `downloadBundledModel` fetches it into `build/generated/qwen-model/models/` (SHA-256 pinned), it is packed uncompressed into `assets/models/` and extracted to the same path on first use.
 
-The AI Chat screen can download Qwen2.5-Coder-7B-Instruct Q4_K_M (~4.7 GB) to `files/models/qwen2.5-coder-7b.gguf`, which then takes priority over the bundled model.
+The AI Chat screen can download Qwen2.5-Coder-7B-Instruct Q4_K_M (~4.7 GB) to `files/models/qwen2.5-coder-7b.gguf`, which then takes priority over the 1.5B.
 
-`QwenCoderEngineBridge.findModel()` searches, in order: the path set from USB/OTG, `<usb>/CodeSurferMobileIDE/models/` and `<usb>/models/`, `Android/data/com.codesurfer.mobileide/files/models/qwen2.5-coder-7b.gguf`, internal `files/models/qwen2.5-coder-7b.gguf`, then `assets/models/`.
+`QwenCoderEngineBridge.findModel()` searches, in order: the path set from USB/OTG, `<usb>/CodeSurferMobileIDE/models/` and `<usb>/models/`, `Android/data/com.codesurfer.mobileide/files/models/qwen2.5-coder-7b.gguf`, internal `files/models/qwen2.5-coder-7b.gguf`, internal `files/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`, then `assets/models/`.

@@ -25,13 +25,14 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 | The old prebuilt `libllama.so`/`libggml*.so` had no JNI exports, so every `native*` call in `QwenCoderEngineBridge` would throw `UnsatisfiedLinkError`. | `nm -D` on the libs |
 | `libqwen_jni.so` (src/main/cpp, llama.cpp v0.9.0 static) exports all 8 `native*` methods for arm64-v8a and x86_64. | `nm -D` on the built APK |
 | Engine loads a GGUF and generates real code/chat; emoji/non-ASCII input survives JNI. | emulator, test harness (0.5B model) |
-| Qwen2.5-Coder-1.5B Q4_K_M is bundled in the APK, extracted on first run to `files/models/`, loaded via the AI Chat screen. | emulator, in-app (logcat `QwenJNI: Loaded model ...`) |
+| Default APK (~79 MB, no model): AI Chat shows "No model yet" + one-tap 1.5B download (1.1 GB). Download finished, model loaded, chat answered ("hello" in 19.7 s). | emulator, in-app |
+| `-PbundleModel=true` APK (~1.2 GB): 1.5B bundled in assets, extracted on first run to `files/models/`, loaded via AI Chat. | emulator, in-app (logcat `QwenJNI: Loaded model ...`) |
 | AI Chat screen answers a prompt end to end through the React Native UI (correct `is_prime` function). Took ~300 s on the x86_64 emulator (software CPU); S24 speed not measured yet. | emulator, in-app (see PR #1) |
 | 7B download refuses to start when free space is too low (message shows needed vs free). | emulator, in-app |
 
 ## ❓ NOT YET VERIFIED
 
-- Bundled 1.5B model and AI Chat **on the S24** (speed, first-run extraction time).
+- 1.5B download and AI Chat **on the S24** (speed).
 - 7B in-app download completing and switching over (emulator had no room).
 - Model on USB/OTG being picked up on the device (needs "All files access" granted).
 - AI Debugger screen calling the model (needs an open project file).
@@ -41,10 +42,10 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 ## 🧭 Notes for continuing on PC
 
 - Build: Node 20 LTS, JDK 17, Android SDK + NDK 25.1.8937393, CMake 3.22.1. Then `npm install` and `cd android && ./gradlew assembleRelease`.
-- First build downloads llama.cpp (CMake FetchContent) and the 1.1 GB model (Gradle task `downloadBundledModel`, SHA-256 pinned). Add `-PskipBundledModel=true` for a small APK without the model.
+- First build downloads llama.cpp (CMake FetchContent). Default APK has no model (~79 MB; chat attachments can't carry 1.2 GB). Add `-PbundleModel=true` to bundle the 1.1 GB model (Gradle task `downloadBundledModel`, SHA-256 pinned).
 - **Never run `expo prebuild --clean`**: it deletes the custom Java modules and `src/main/cpp`.
 - Windows Metro `node:sea` error above is a Node 22+ issue with Expo SDK 50; use Node 20.
-- Model search order: USB/OTG path -> `<usb>/models`, `<usb>/CodeSurferMobileIDE/models` -> `Android/data/<pkg>/files/models/qwen2.5-coder-7b.gguf` -> `files/models/qwen2.5-coder-7b.gguf` (the in-app 7B download) -> bundled asset.
+- Model search order: USB/OTG path -> `<usb>/models`, `<usb>/CodeSurferMobileIDE/models` -> `Android/data/<pkg>/files/models/qwen2.5-coder-7b.gguf` -> `files/models/qwen2.5-coder-7b.gguf` (in-app 7B download) -> `files/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf` (in-app 1.5B download or extracted asset) -> bundled asset.
 - One shared engine instance (`QwenCoderEngineBridge.getInstance`); the native side holds a single global model.
 - When the native engine is missing, Qwen calls now return an error instead of a fake "mock" answer (Sentinal honest degradation). `AIBridgeService` still has a JS mock fallback that should get the same treatment.
 
