@@ -3,6 +3,7 @@ package com.codesurfer.mobileide;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
@@ -69,7 +70,7 @@ public class QwenCoderModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void chat(String message, String[] context, int maxTokens, Promise promise) {
+    public void chat(String message, ReadableArray context, int maxTokens, Promise promise) {
         try {
             if (!isInitialized) {
                 promise.reject("NOT_INITIALIZED", "Qwen Coder module is not initialized");

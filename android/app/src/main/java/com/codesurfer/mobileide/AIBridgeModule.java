@@ -16,6 +16,8 @@ import org.json.JSONArray;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * AIBridgeModule — Abstraction layer for on-device AI backends.
@@ -40,6 +42,8 @@ public class AIBridgeModule extends ReactContextBaseJavaModule {
     private final ReactApplicationContext reactContext;
     private QwenCoderEngineBridge qwenBridge;
     private boolean qwenInitialized = false;
+    // Inference can take a long time; keep it off the shared native modules thread.
+    private final ExecutorService taskExecutor = Executors.newSingleThreadExecutor();
 
     public AIBridgeModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -113,6 +117,10 @@ public class AIBridgeModule extends ReactContextBaseJavaModule {
      */
     @ReactMethod
     public void executeTask(String taskType, String backend, String paramsJson, Promise promise) {
+        taskExecutor.execute(() -> runTask(taskType, backend, paramsJson, promise));
+    }
+
+    private void runTask(String taskType, String backend, String paramsJson, Promise promise) {
         try {
             JSONObject params = new JSONObject(paramsJson);
 
@@ -205,11 +213,7 @@ public class AIBridgeModule extends ReactContextBaseJavaModule {
 
     private boolean isQwenLlamaCppAvailable() {
         try {
-            // Load in dependency order: base -> cpu -> ggml -> llama
-            System.loadLibrary("ggml-base");
-            System.loadLibrary("ggml-cpu");
-            System.loadLibrary("ggml");
-            System.loadLibrary("llama");
+            System.loadLibrary("qwen_jni");
             return true;
         } catch (UnsatisfiedLinkError e) {
             return false;
@@ -322,7 +326,9 @@ public class AIBridgeModule extends ReactContextBaseJavaModule {
 
     private void initializeQwenBridge() {
         try {
-            qwenBridge = new QwenCoderEngineBridge(getReactApplicationContext());
+            if (qwenBridge == null) {
+                qwenBridge = new QwenCoderEngineBridge(getReactApplicationContext());
+            }
             qwenBridge.initialize();
             qwenInitialized = true;
         } catch (Exception e) {

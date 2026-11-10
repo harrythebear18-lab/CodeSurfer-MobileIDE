@@ -13,7 +13,7 @@ import java.io.OutputStream;
  * This wraps the native llama.cpp inference for on-device Qwen 2.5 Coder model.
  * It handles model extraction from assets, native library loading, and inference.
  *
- * The native library (libllama.so) must be present in jniLibs/<abi>/.
+ * The native library (libqwen_jni.so) is built from src/main/cpp with the NDK.
  * The model file (qwen2.5-coder-7b.gguf) should be in assets/models/ or
  * external storage at /sdcard/Android/data/com.codesurfer.mobileide/files/models/
  */
@@ -24,7 +24,7 @@ public class QwenCoderEngineBridge {
     private String modelPath;
     private String externalModelPath = null;
 
-    // Native method declarations — implemented in libllama.so
+    // Native method declarations — implemented in src/main/cpp/qwen_jni.cpp
     private native boolean nativeInitialize(String modelPath, int contextSize, int gpuLayers);
     private native String nativeGenerate(String prompt, int maxTokens, float temperature);
     private native String nativeGenerateCode(String prompt, String language, int maxTokens);
@@ -36,11 +36,8 @@ public class QwenCoderEngineBridge {
 
     static {
         try {
-            // Load in dependency order: base -> cpu -> ggml -> llama
-            System.loadLibrary("ggml-base");
-            System.loadLibrary("ggml-cpu");
-            System.loadLibrary("ggml");
-            System.loadLibrary("llama");
+            // libqwen_jni.so has llama.cpp linked in statically (see src/main/cpp)
+            System.loadLibrary("qwen_jni");
         } catch (UnsatisfiedLinkError e) {
             // Libraries not found — will fall back to mock
         }
