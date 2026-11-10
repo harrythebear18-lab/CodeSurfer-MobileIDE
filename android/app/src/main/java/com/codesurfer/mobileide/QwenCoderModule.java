@@ -8,21 +8,23 @@ import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
 
-/**
- * Qwen Coder Module - React Native native module for Qwen Coder integration
- * This module provides an interface to Qwen Coder AI capabilities
- * within the CodeSurfer MobileIDE React Native app.
- */
+import java.io.File;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+/**
+ * Qwen Coder Module - React Native native module for the on-device Qwen Coder engine.
+ * Calls run on a background thread; the engine loads the model on first use.
+ */
 public class QwenCoderModule extends ReactContextBaseJavaModule {
 
     private static final String MODULE_NAME = "QwenCoderModule";
-    private boolean isInitialized = false;
-    private QwenCoderEngineBridge engineBridge;
+    private final QwenCoderEngineBridge engineBridge;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     public QwenCoderModule(ReactApplicationContext reactContext) {
         super(reactContext);
-        this.engineBridge = new QwenCoderEngineBridge(reactContext);
+        this.engineBridge = QwenCoderEngineBridge.getInstance(reactContext);
     }
 
     @Override
@@ -30,123 +32,112 @@ public class QwenCoderModule extends ReactContextBaseJavaModule {
         return MODULE_NAME;
     }
 
+    private interface Task {
+        WritableMap run() throws Exception;
+    }
+
+    private void runAsync(Promise promise, String errorCode, String errorPrefix, Task task) {
+        executor.execute(() -> {
+            try {
+                promise.resolve(task.run());
+            } catch (Exception e) {
+                promise.reject(errorCode, errorPrefix + e.getMessage());
+            }
+        });
+    }
+
+    private WritableMap status() {
+        WritableMap result = Arguments.createMap();
+        String path = engineBridge.getModelPath();
+        boolean exists = path != null && new File(path).exists();
+        result.putBoolean("initialized", engineBridge.isInitialized());
+        result.putBoolean("modelFound", exists);
+        result.putString("modelPath", path);
+        result.putString("modelName", path != null ? new File(path).getName() : null);
+        result.putDouble("modelSizeBytes", exists ? new File(path).length() : 0);
+        return result;
+    }
+
+    @ReactMethod
+    public void getStatus(Promise promise) {
+        try {
+            promise.resolve(status());
+        } catch (Exception e) {
+            promise.reject("STATUS_ERROR", e.getMessage());
+        }
+    }
+
     @ReactMethod
     public void initialize(Promise promise) {
-        try {
+        runAsync(promise, "INIT_ERROR", "Failed to initialize Qwen Coder: ", () -> {
             engineBridge.initialize();
-            isInitialized = true;
-
-            WritableMap result = Arguments.createMap();
+            WritableMap result = status();
             result.putBoolean("success", true);
-            result.putString("message", "Qwen Coder engine initialized");
-            result.putString("version", "2.5-7b");
+            return result;
+        });
+    }
 
-            promise.resolve(result);
-        } catch (Exception e) {
-            isInitialized = false;
-            promise.reject("INIT_ERROR", "Failed to initialize Qwen Coder: " + e.getMessage());
-        }
+    @ReactMethod
+    public void reload(Promise promise) {
+        runAsync(promise, "INIT_ERROR", "Failed to load model: ", () -> {
+            engineBridge.reload();
+            return status();
+        });
     }
 
     @ReactMethod
     public void generateCode(String prompt, String language, int maxTokens, Promise promise) {
-        try {
-            if (!isInitialized) {
-                promise.reject("NOT_INITIALIZED", "Qwen Coder module is not initialized");
-                return;
-            }
-
+        runAsync(promise, "CODE_GENERATION_ERROR", "Failed to generate code: ", () -> {
             String response = engineBridge.generateCode(prompt, language, maxTokens);
-
             WritableMap result = Arguments.createMap();
             result.putString("code", response);
             result.putString("language", language);
             result.putInt("tokensGenerated", response.length() / 4);
-
-            promise.resolve(result);
-        } catch (Exception e) {
-            promise.reject("CODE_GENERATION_ERROR", "Failed to generate code: " + e.getMessage());
-        }
+            return result;
+        });
     }
 
     @ReactMethod
     public void chat(String message, ReadableArray context, int maxTokens, Promise promise) {
-        try {
-            if (!isInitialized) {
-                promise.reject("NOT_INITIALIZED", "Qwen Coder module is not initialized");
-                return;
-            }
-
+        runAsync(promise, "CHAT_ERROR", "Failed to chat: ", () -> {
+            long start = System.currentTimeMillis();
             String response = engineBridge.chat(message, maxTokens);
-
             WritableMap result = Arguments.createMap();
             result.putString("response", response);
             result.putInt("tokensGenerated", response.length() / 4);
-
-            promise.resolve(result);
-        } catch (Exception e) {
-            promise.reject("CHAT_ERROR", "Failed to chat: " + e.getMessage());
-        }
+            result.putDouble("durationMs", System.currentTimeMillis() - start);
+            return result;
+        });
     }
 
     @ReactMethod
     public void completeCode(String code, String language, int maxTokens, Promise promise) {
-        try {
-            if (!isInitialized) {
-                promise.reject("NOT_INITIALIZED", "Qwen Coder module is not initialized");
-                return;
-            }
-
-            String completion = engineBridge.completeCode(code, language, maxTokens);
-
+        runAsync(promise, "CODE_COMPLETION_ERROR", "Failed to complete code: ", () -> {
             WritableMap result = Arguments.createMap();
-            result.putString("completion", completion);
+            result.putString("completion", engineBridge.completeCode(code, language, maxTokens));
             result.putString("language", language);
-
-            promise.resolve(result);
-        } catch (Exception e) {
-            promise.reject("CODE_COMPLETION_ERROR", "Failed to complete code: " + e.getMessage());
-        }
+            return result;
+        });
     }
 
     @ReactMethod
     public void fixCode(String code, String error, String language, int maxTokens, Promise promise) {
-        try {
-            if (!isInitialized) {
-                promise.reject("NOT_INITIALIZED", "Qwen Coder module is not initialized");
-                return;
-            }
-
-            String fixedCode = engineBridge.fixCode(code, error, language, maxTokens);
-
+        runAsync(promise, "CODE_FIX_ERROR", "Failed to fix code: ", () -> {
             WritableMap result = Arguments.createMap();
-            result.putString("fixedCode", fixedCode);
+            result.putString("fixedCode", engineBridge.fixCode(code, error, language, maxTokens));
             result.putString("language", language);
             result.putBoolean("hasFix", true);
-
-            promise.resolve(result);
-        } catch (Exception e) {
-            promise.reject("CODE_FIX_ERROR", "Failed to fix code: " + e.getMessage());
-        }
+            return result;
+        });
     }
 
     @ReactMethod
     public void explainCode(String code, String language, int maxTokens, Promise promise) {
-        try {
-            if (!isInitialized) {
-                promise.reject("NOT_INITIALIZED", "Qwen Coder module is not initialized");
-                return;
-            }
-
-            String explanation = engineBridge.explainCode(code, language, maxTokens);
-
+        runAsync(promise, "CODE_EXPLANATION_ERROR", "Failed to explain code: ", () -> {
             WritableMap result = Arguments.createMap();
-            result.putString("explanation", explanation);
+            result.putString("explanation", engineBridge.explainCode(code, language, maxTokens));
             result.putString("language", language);
-
-            promise.resolve(result);
-        } catch (Exception e) {
-            promise.reject("CODE_EXPLANATION_ERROR", "Failed to explain code: " + e.getMessage());
-        }
+            return result;
+        });
     }
 }

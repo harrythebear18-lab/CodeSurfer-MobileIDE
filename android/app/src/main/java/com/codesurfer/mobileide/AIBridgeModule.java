@@ -59,7 +59,7 @@ public class AIBridgeModule extends ReactContextBaseJavaModule {
     public void setModelPath(String path, Promise promise) {
         try {
             if (qwenBridge == null) {
-                qwenBridge = new QwenCoderEngineBridge(reactContext);
+                qwenBridge = QwenCoderEngineBridge.getInstance(reactContext);
             }
             qwenBridge.setExternalModelPath(path);
             qwenInitialized = false;
@@ -327,7 +327,7 @@ public class AIBridgeModule extends ReactContextBaseJavaModule {
     private void initializeQwenBridge() {
         try {
             if (qwenBridge == null) {
-                qwenBridge = new QwenCoderEngineBridge(getReactApplicationContext());
+                qwenBridge = QwenCoderEngineBridge.getInstance(getReactApplicationContext());
             }
             qwenBridge.initialize();
             qwenInitialized = true;

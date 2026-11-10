@@ -19,6 +19,7 @@ import SearchScreen from './src/screens/SearchScreen';
 import AIDebuggerScreen from './src/screens/AIDebuggerScreen';
 import DeploymentScreen from './src/screens/DeploymentScreen';
 import USBCompanionScreen from './src/screens/USBCompanionScreen';
+import AIChatScreen from './src/screens/AIChatScreen';
 
 // Import theme and context
 import { theme } from './src/styles/theme';
@@ -106,6 +107,11 @@ export default function App() {
                   name="Deployment" 
                   component={DeploymentScreen} 
                   options={{ title: 'USB Deployment' }}
+                />
+                <Stack.Screen 
+                  name="AIChat" 
+                  component={AIChatScreen} 
+                  options={{ title: 'AI Chat' }}
                 />
                 <Stack.Screen 
                   name="USBCompanion" 

@@ -20,8 +20,8 @@ import java.io.OutputStream;
 public class QwenCoderEngineBridge {
 
     private Context context;
-    private boolean isInitialized = false;
-    private String modelPath;
+    private volatile boolean isInitialized = false;
+    private volatile String modelPath;
     private String externalModelPath = null;
 
     // Native method declarations — implemented in src/main/cpp/qwen_jni.cpp
@@ -39,20 +39,43 @@ public class QwenCoderEngineBridge {
             // libqwen_jni.so has llama.cpp linked in statically (see src/main/cpp)
             System.loadLibrary("qwen_jni");
         } catch (UnsatisfiedLinkError e) {
-            // Libraries not found — will fall back to mock
+            // Reported as an error on first use
         }
     }
 
-    public QwenCoderEngineBridge(Context context) {
+    private static QwenCoderEngineBridge instance;
+
+    // One shared engine: the native side holds a single global model.
+    public static synchronized QwenCoderEngineBridge getInstance(Context context) {
+        if (instance == null) {
+            instance = new QwenCoderEngineBridge(context.getApplicationContext());
+        }
+        return instance;
+    }
+
+    private QwenCoderEngineBridge(Context context) {
         this.context = context;
     }
 
-    public void initialize() throws Exception {
+    public boolean isInitialized() {
+        return isInitialized;
+    }
+
+    public String getModelPath() {
+        return isInitialized ? modelPath : findModel(false);
+    }
+
+    public synchronized void reload() throws Exception {
+        cleanup();
+        initialize();
+    }
+
+    public synchronized void initialize() throws Exception {
         if (isInitialized) {
             return;
         }
 
-        modelPath = findModel();
+        modelPath = findModel(true);
 
         if (modelPath == null || !new File(modelPath).exists()) {
             throw new Exception("Qwen model file not found. Place qwen2.5-coder-7b.gguf in app storage or USB OTG /models/.");
@@ -72,14 +95,14 @@ public class QwenCoderEngineBridge {
         isInitialized = true;
     }
 
-    public void setExternalModelPath(String path) {
+    public synchronized void setExternalModelPath(String path) {
         this.externalModelPath = path;
         if (isInitialized) {
             cleanup();
         }
     }
 
-    private String findModel() {
+    private String findModel(boolean extractAssets) {
         // 0. Check external model path (set from USB OTG or Storage Access Framework)
         if (externalModelPath != null) {
             File extModel = new File(externalModelPath);
@@ -175,8 +198,15 @@ public class QwenCoderEngineBridge {
                         outputDir.mkdirs();
                         File outputFile = new File(outputDir, modelFile);
 
+                        if (!outputFile.exists() && !extractAssets) {
+                            return outputFile.getAbsolutePath();
+                        }
                         if (!outputFile.exists()) {
-                            extractAsset(assets, "models/" + modelFile, outputFile);
+                            File tmp = new File(outputDir, modelFile + ".part");
+                            extractAsset(assets, "models/" + modelFile, tmp);
+                            if (!tmp.renameTo(outputFile)) {
+                                throw new Exception("Could not move extracted model into place");
+                            }
                         }
 
                         return outputFile.getAbsolutePath();
@@ -204,52 +234,52 @@ public class QwenCoderEngineBridge {
         }
     }
 
-    public String generateCode(String prompt, String language, int maxTokens) throws Exception {
+    public synchronized String generateCode(String prompt, String language, int maxTokens) throws Exception {
         ensureInitialized();
         try {
             return nativeGenerateCode(prompt, language, maxTokens);
         } catch (UnsatisfiedLinkError e) {
-            return mockGenerate(prompt, language);
+            throw new Exception("Local AI engine (qwen_jni) is not available on this device");
         }
     }
 
-    public String explainCode(String code, String language, int maxTokens) throws Exception {
+    public synchronized String explainCode(String code, String language, int maxTokens) throws Exception {
         ensureInitialized();
         try {
             return nativeExplainCode(code, language, maxTokens);
         } catch (UnsatisfiedLinkError e) {
-            return mockExplain(code, language);
+            throw new Exception("Local AI engine (qwen_jni) is not available on this device");
         }
     }
 
-    public String fixCode(String code, String error, String language, int maxTokens) throws Exception {
+    public synchronized String fixCode(String code, String error, String language, int maxTokens) throws Exception {
         ensureInitialized();
         try {
             return nativeFixCode(code, error, language, maxTokens);
         } catch (UnsatisfiedLinkError e) {
-            return mockFix(code, error, language);
+            throw new Exception("Local AI engine (qwen_jni) is not available on this device");
         }
     }
 
-    public String completeCode(String code, String language, int maxTokens) throws Exception {
+    public synchronized String completeCode(String code, String language, int maxTokens) throws Exception {
         ensureInitialized();
         try {
             return nativeCompleteCode(code, language, maxTokens);
         } catch (UnsatisfiedLinkError e) {
-            return mockComplete(code);
+            throw new Exception("Local AI engine (qwen_jni) is not available on this device");
         }
     }
 
-    public String chat(String message, int maxTokens) throws Exception {
+    public synchronized String chat(String message, int maxTokens) throws Exception {
         ensureInitialized();
         try {
             return nativeChat(message, maxTokens);
         } catch (UnsatisfiedLinkError e) {
-            return "Mock chat response to: " + message;
+            throw new Exception("Local AI engine (qwen_jni) is not available on this device");
         }
     }
 
-    public void cleanup() {
+    public synchronized void cleanup() {
         if (isInitialized) {
             try {
                 nativeCleanup();
@@ -260,33 +290,9 @@ public class QwenCoderEngineBridge {
         }
     }
 
-    private void ensureInitialized() throws Exception {
+    private synchronized void ensureInitialized() throws Exception {
         if (!isInitialized) {
             initialize();
         }
-    }
-
-    // Mock fallbacks (used when native library is not available)
-    private String mockGenerate(String prompt, String language) {
-        return "// Generated by Qwen Coder 2.5-7B (mock)\n" +
-               "// Language: " + language + "\n" +
-               "// Prompt: " + prompt + "\n\n" +
-               "function generated() {\n  return true;\n}";
-    }
-
-    private String mockExplain(String code, String language) {
-        return "Code Explanation (mock):\n" +
-               "Language: " + language + "\n" +
-               code.substring(0, Math.min(200, code.length()));
-    }
-
-    private String mockFix(String code, String error, String language) {
-        return "// Fixed code (mock)\n" + code;
-    }
-
-    private String mockComplete(String code) {
-        if (code.endsWith("(")) return ") {\n  return result;\n}";
-        if (code.endsWith("{")) return "\n  return result;\n}";
-        return " // completion";
     }
 }

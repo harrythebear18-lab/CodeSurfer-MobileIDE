@@ -28,6 +28,11 @@ const HomeScreen = ({ navigation }) => {
 
   const quickActions = [
     {
+      title: 'AI Chat',
+      icon: 'chatbubbles-outline',
+      onPress: () => navigation.navigate('AIChat'),
+    },
+    {
       title: 'New Project',
       icon: 'add-circle-outline',
       onPress: () => setCreateModalVisible(true),
