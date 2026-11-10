@@ -30,6 +30,10 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 | AI Chat screen answers a prompt end to end through the React Native UI (correct `is_prime` function). Took ~300 s on the x86_64 emulator (software CPU); S24 speed not measured yet. | emulator, in-app (see PR #1) |
 | 7B download refuses to start when free space is too low (message shows needed vs free). | emulator, in-app |
 
+## ❌ KNOWN BROKEN (reported on device, 2026-11-10)
+
+- **Files: create/open fails, and there is no way to type into a file.** Reported by Harry on the S24 with the 79 MB APK (`7274f32`). The app opens fine; the file workflow does not work. Cause not investigated yet, no code changed for it. Start here next.
+
 ## ❓ NOT YET VERIFIED
 
 - 1.5B download and AI Chat **on the S24** (speed).
@@ -38,6 +42,16 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 - AI Debugger screen calling the model (needs an open project file).
 - Samsung Galaxy AI / Gemini Nano backends: placeholders only.
 - Build/npm/git screens: still simulated ("Build simulation completed", fixed commit hash).
+
+## 🛠 What was changed (PR #1, merged into `user-side`)
+
+| Commit | Change |
+|---|---|
+| `e231e1b` | Regenerated `android/` with `expo prebuild`; Kotlin `MainActivity`/`MainApplication` compiled and registered; `AIBridgePackage` registered; custom permissions + USB host kept; real PNG icons/splash; `index.js` added; Expo 50 dependency fixes. |
+| `909c197` | `src/main/cpp/qwen_jni.cpp` + CMake: llama.cpp v0.9.0 JNI bridge (`libqwen_jni.so`, arm64-v8a + x86_64); Java loads `qwen_jni`; inference off the RN module thread; UTF-8 safe strings. |
+| `f5b1a8e` | Fixed invalid Ionicons names that showed as "?" (USB Companion, USB Deployment). |
+| `95f488d` | AI Chat screen (Home tile); shared engine (`QwenCoderEngineBridge.getInstance`); `QwenCoderModule` background executor + `getStatus`/`reload`; mock answers removed from the bridge; optional 7B download; bundled-model Gradle task. |
+| `7274f32` | Small APK by default; one-tap 1.5B download in AI Chat when no model is found; `-PbundleModel=true` bundles it instead. |
 
 ## 🧭 Notes for continuing on PC
 
