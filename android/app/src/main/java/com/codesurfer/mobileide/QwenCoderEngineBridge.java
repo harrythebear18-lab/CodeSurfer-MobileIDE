@@ -61,7 +61,12 @@ public class QwenCoderEngineBridge {
             throw new Exception("Qwen model file not found. Place qwen2.5-coder-7b.gguf in app storage or USB OTG /models/.");
         }
 
-        boolean success = nativeInitialize(modelPath, 4096, 32);
+        boolean success;
+        try {
+            success = nativeInitialize(modelPath, 4096, 32);
+        } catch (UnsatisfiedLinkError e) {
+            throw new Exception("Qwen Coder native JNI bridge not available: " + e.getMessage());
+        }
 
         if (!success) {
             throw new Exception("Failed to initialize Qwen Coder native engine with model: " + modelPath);
