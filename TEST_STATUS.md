@@ -42,6 +42,19 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 - **Not verified:** the S24 itself. Harry to re-test with the new APK.
 - **Seen but not investigated:** on the emulator, Login said "No account found" for an email that Sign Up said "already exists" (account made with an older build). New sign-up and login worked.
 
+## 🔧 Home → New Project: project unusable after creation (2026-11-12, awaiting S24 re-test)
+
+- **Reported by Harry on the S24 after the fix above:** "New project, create the project, then cannot do anything with the project." The emulator check above only used the File Manager's own create button, so it missed this.
+- **Causes and fixes:**
+  - `HomeScreen.js` created projects in `documentDirectory`, but the File Manager (for non-admin users) and the AI tools only work inside `documentDirectory/user_projects/`. The project was never listed and its files could not be opened. Projects are now created in `FilePermissionService.getUserAccessibleDirectory()`.
+  - Projects made by older builds are moved into `user_projects/` at startup (`ProjectService.migrateLegacyProjects()`, which also updates `recent_projects.json`). If the name is taken, `-2`, `-3`... is added.
+  - After creating a project, and when opening one from Recent Projects, the File Manager now opens inside that project. Before, it opened at the top folder, and Android projects opened the (simulated) Compiler screen. The whole Recent Projects card can now be tapped, not just the small chevron.
+  - Inside `user_projects/`, every file type can be listed, opened and edited. The extension allow-list hid template files such as `build.gradle`, `settings.gradle` and `gradle.properties`. The allow-list still applies outside the workspace, and to AI tool writes.
+  - Creating a project with a name that already exists now shows an error instead of overwriting files.
+  - Editor: a failed load now shows an alert and blocks saving (before, it showed "// Error loading file" and a save would overwrite the real file). Save failures show an alert, and the status bar shows Saved/Unsaved. `.json` files now have a real icon instead of `?`.
+- **Verified on emulator (release APK, through the UI):** a project made by the previous build (`webapp`) was moved into `user_projects/` on launch. It opened from Recent Projects, and `App.js` was edited, saved and reopened with the edit kept. New Project → Android App `droidapp` → File Manager opens inside it, showing `app/`, `build.gradle`, `settings.gradle` and `gradle.properties` → went into `app/src/main/java/com/example/app/` → edited `MainActivity.java` → Save → status "Saved" → reopened with the edit kept.
+- **Not verified:** the S24 itself.
+
 ## 🤖 AI Chat agent: tool calling + plan/feedback loop (2026-11-12, awaiting S24 test)
 
 AI Chat is now an agent: the model can read, search and edit files in `user_projects/` and loops plan -> tool -> result -> check until done.

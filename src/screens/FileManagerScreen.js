@@ -15,10 +15,10 @@ import { SecureFileSystemService } from '../services/secureFileSystemService';
 import { FileSystemService } from '../services/fileSystemService';
 import { FilePermissionService } from '../services/filePermissionService';
 
-const FileManagerScreen = ({ navigation }) => {
+const FileManagerScreen = ({ navigation, route }) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentPath, setCurrentPath] = useState(FileSystem.documentDirectory);
+  const [currentPath, setCurrentPath] = useState(route?.params?.path || FileSystem.documentDirectory);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newFileName, setNewFileName] = useState('');
@@ -46,7 +46,7 @@ const FileManagerScreen = ({ navigation }) => {
       case 'css':
         return 'logo-css3';
       case 'json':
-        return 'code-json';
+        return 'code-slash-outline';
       case 'md':
         return 'document-text-outline';
       default:
@@ -80,6 +80,10 @@ const FileManagerScreen = ({ navigation }) => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (route?.params?.path) setCurrentPath(route.params.path);
+  }, [route?.params?.path]);
 
   useEffect(() => {
     loadFiles();

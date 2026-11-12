@@ -273,7 +273,7 @@ export const AppProvider = ({ children }) => {
         }
         
         // Load recent projects
-        const projects = await FileSystemService.getRecentProjects();
+        const projects = await ProjectService.migrateLegacyProjects().catch(() => FileSystemService.getRecentProjects());
         dispatch(actions.setRecentProjects(projects));
       } catch (error) {
         console.error('Error initializing app:', error);

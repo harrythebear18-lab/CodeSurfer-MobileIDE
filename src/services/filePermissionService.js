@@ -55,6 +55,10 @@ export class FilePermissionService {
     );
   }
 
+  static isInUserWorkspace(filePath) {
+    return !!filePath && filePath.replace(/\\/g, '/').startsWith(this.getUserAccessibleDirectory());
+  }
+
   // Check if file has allowed extension
   static isAllowedFile(fileName) {
     const extension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
@@ -83,7 +87,7 @@ export class FilePermissionService {
       }
       
       // Only show files with allowed extensions
-      if (!item.isDirectory && !this.isAllowedFile(item.name)) {
+      if (!item.isDirectory && !this.isInUserWorkspace(item.path) && !this.isAllowedFile(item.name)) {
         return false;
       }
       
@@ -105,7 +109,7 @@ export class FilePermissionService {
     }
 
     // Regular users can only read allowed file types
-    if (!this.isAllowedFile(fileName)) {
+    if (!this.isInUserWorkspace(filePath) && !this.isAllowedFile(fileName)) {
       return false;
     }
 
@@ -126,7 +130,7 @@ export class FilePermissionService {
     }
 
     // Regular users can only write allowed file types
-    if (!this.isAllowedFile(fileName)) {
+    if (!this.isInUserWorkspace(filePath) && !this.isAllowedFile(fileName)) {
       return false;
     }
 
@@ -147,7 +151,7 @@ export class FilePermissionService {
     }
 
     // Regular users can only delete allowed file types
-    if (!this.isAllowedFile(fileName)) {
+    if (!this.isInUserWorkspace(filePath) && !this.isAllowedFile(fileName)) {
       return false;
     }
 
@@ -168,7 +172,7 @@ export class FilePermissionService {
     }
 
     // Regular users can only create allowed file types
-    if (!this.isAllowedFile(fileName)) {
+    if (!this.isInUserWorkspace(filePath) && !this.isAllowedFile(fileName)) {
       return false;
     }
 
