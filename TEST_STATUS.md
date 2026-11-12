@@ -42,6 +42,19 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 - **Not verified:** the S24 itself. Harry to re-test with the new APK.
 - **Seen but not investigated:** on the emulator, Login said "No account found" for an email that Sign Up said "already exists" (account made with an older build). New sign-up and login worked.
 
+## 🤖 AI Chat agent: tool calling + plan/feedback loop (2026-11-12, awaiting S24 test)
+
+AI Chat is now an agent: the model can read, search and edit files in `user_projects/` and loops plan -> tool -> result -> check until done.
+- **Code:** `src/services/agentTools.js` (tools, sandbox, diffs, approved writes), `src/services/agentService.js` (agent loop, Qwen ChatML prompt, tool-call parser, local + Ollama backends), `src/screens/AIChatScreen.js` (UI). Native: `QwenCoderModule.complete()/cancel()` -> `QwenCoderEngineBridge.generateRaw()` -> `qwen_jni.cpp nativeGenerateRaw/nativeCancel` (raw prompt, stop strings, KV-cache prefix reuse, context 8192, batch 512).
+- **Tools:** `list_files`, `read_file`, `search_files`, `create_file`, `edit_file` (find/replace, whitespace-tolerant, keeps file formatting), `write_file`, `update_plan`. No run/terminal tool: build/npm/git in the app are still simulated.
+- **Safety:** paths must be relative to `user_projects/`; absolute paths, URIs and `..` escapes are rejected. Every write shows a diff and waits for Approve/Reject (on by default; toggle in AI Chat settings). After a write the file is read back and compared. Rejected changes are not written and the model is told not to retry. Stop button cancels generation and pending approvals. 12-step limit.
+- **Plan checklist:** shown as a card; the app ticks a step after each successful tool action. Settings: Auto (on for 7B/Ollama, off for 1.5B), On, Off.
+- **Engines:** On-device (llama.cpp) or Ollama server (URL + model + "Test connection" in AI Chat settings; uses Ollama native tool calling via `/api/chat`).
+- **Verified on emulator (release APK, through the UI, 1.5B):** "Create the file calc/math.js with a JavaScript add function." -> `create_file` card -> diff approval card -> Approve -> written and read back -> `read_file` check -> summary (44 s for the last turn).
+- **Verified on the VM (host llama.cpp, same model files, test harness driving `agentService.js`):** 1.5B fixed a bug in `calc/math.js` in 4/4 runs with no-plan mode; path sandbox, edit matching, parser and prompt unit checks pass. 7B with the plan checklist planned correctly but needed extra nudges; not yet a reliable multi-step pass.
+- **Not verified:** speed and behaviour on the S24; Ollama tool calling against a real Ollama server (code written to Ollama's documented `/api/chat` tool format, no server was available here); 7B in-app.
+- **Honest limits:** the 1.5B handles simple one-file tasks; multi-step tasks often go wrong. 7B is better but slower. It is a helper, not a full coding agent.
+
 ## ❓ NOT YET VERIFIED
 
 - 1.5B download and AI Chat **on the S24** (speed).

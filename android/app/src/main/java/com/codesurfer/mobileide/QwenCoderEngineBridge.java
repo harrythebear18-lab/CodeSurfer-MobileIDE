@@ -32,6 +32,8 @@ public class QwenCoderEngineBridge {
     private native String nativeFixCode(String code, String error, String language, int maxTokens);
     private native String nativeCompleteCode(String code, String language, int maxTokens);
     private native String nativeChat(String message, int maxTokens);
+    private native String nativeGenerateRaw(String prompt, String[] stops, int maxTokens, float temperature);
+    private native void nativeCancel();
     private native void nativeCleanup();
 
     static {
@@ -84,7 +86,7 @@ public class QwenCoderEngineBridge {
 
         boolean success;
         try {
-            success = nativeInitialize(modelPath, 4096, 32);
+            success = nativeInitialize(modelPath, 8192, 32);
         } catch (UnsatisfiedLinkError e) {
             throw new Exception("Qwen Coder native JNI bridge not available: " + e.getMessage());
         }
@@ -283,6 +285,26 @@ public class QwenCoderEngineBridge {
             return nativeChat(message, maxTokens);
         } catch (UnsatisfiedLinkError e) {
             throw new Exception("Local AI engine (qwen_jni) is not available on this device");
+        }
+    }
+
+    /** Runs a pre-formatted (ChatML) prompt; stops at any of {@code stops} (kept in the output). */
+    public synchronized String generateRaw(String prompt, String[] stops, int maxTokens, float temperature) throws Exception {
+        ensureInitialized();
+        try {
+            return nativeGenerateRaw(prompt, stops, maxTokens, temperature);
+        } catch (UnsatisfiedLinkError e) {
+            throw new Exception("Local AI engine (qwen_jni) is not available on this device");
+        }
+    }
+
+    /** Not synchronized: must be callable while a generation holds the lock. */
+    public void cancel() {
+        if (!isInitialized) return;
+        try {
+            nativeCancel();
+        } catch (UnsatisfiedLinkError e) {
+            // ignore
         }
     }
 

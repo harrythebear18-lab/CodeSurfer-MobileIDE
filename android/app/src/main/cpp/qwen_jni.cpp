@@ -2,6 +2,7 @@
 #include <android/log.h>
 
 #include <algorithm>
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -18,6 +19,9 @@ namespace {
 std::mutex g_mutex;
 llama_model * g_model = nullptr;
 llama_context * g_ctx = nullptr;
+std::atomic<bool> g_cancel{false};
+// Tokens currently held in the KV cache, so the next prompt only decodes what changed.
+std::vector<llama_token> g_cached;
 
 const char * SYSTEM_PROMPT = "You are Qwen Coder, a helpful coding assistant inside the CodeSurfer mobile IDE. Answer concisely.";
 
@@ -113,15 +117,14 @@ std::string apply_template(const std::string & user) {
     return std::string(buf.data(), n);
 }
 
-std::string generate(const std::string & user, int max_tokens, float temperature) {
+std::string generate_raw(const std::string & prompt, int max_tokens, float temperature, const std::vector<std::string> & stops) {
     std::lock_guard<std::mutex> lock(g_mutex);
+    g_cancel = false;
     if (g_model == nullptr || g_ctx == nullptr) {
         return "[Qwen Coder] Model is not loaded.";
     }
 
     const llama_vocab * vocab = llama_model_get_vocab(g_model);
-    const std::string prompt = apply_template(user);
-
     int32_t n_prompt = -llama_tokenize(vocab, prompt.c_str(), (int32_t) prompt.size(), nullptr, 0, true, true);
     std::vector<llama_token> tokens(n_prompt);
     if (llama_tokenize(vocab, prompt.c_str(), (int32_t) prompt.size(), tokens.data(), n_prompt, true, true) < 0) {
@@ -134,7 +137,29 @@ std::string generate(const std::string & user, int max_tokens, float temperature
     }
     max_tokens = std::max(1, std::min(max_tokens, n_ctx - n_prompt));
 
-    llama_memory_clear(llama_get_memory(g_ctx), true);
+    // Reuse the longest common prefix already in the KV cache; keep at least one token to decode.
+    size_t keep = 0;
+    while (keep < g_cached.size() && keep < tokens.size() && g_cached[keep] == tokens[keep]) keep++;
+    if (keep == tokens.size()) keep--;
+    llama_memory_t mem = llama_get_memory(g_ctx);
+    if (!llama_memory_seq_rm(mem, 0, (llama_pos) keep, -1)) {
+        llama_memory_clear(mem, true);
+        keep = 0;
+    }
+    g_cached.resize(keep);
+
+    const int32_t n_batch = (int32_t) llama_n_batch(g_ctx);
+    for (size_t i = keep; i < tokens.size(); i += n_batch) {
+        if (g_cancel) { return ""; }
+        const int32_t n = (int32_t) std::min<size_t>(n_batch, tokens.size() - i);
+        if (llama_decode(g_ctx, llama_batch_get_one(tokens.data() + i, n)) != 0) {
+            LOGE("llama_decode failed on prompt");
+            llama_memory_clear(mem, true);
+            g_cached.clear();
+            return "[Qwen Coder] Failed to process prompt.";
+        }
+        g_cached.insert(g_cached.end(), tokens.begin() + i, tokens.begin() + i + n);
+    }
 
     llama_sampler * smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
     if (temperature <= 0.0f) {
@@ -147,26 +172,40 @@ std::string generate(const std::string & user, int max_tokens, float temperature
     }
 
     std::string out;
-    llama_batch batch = llama_batch_get_one(tokens.data(), n_prompt);
-    llama_token tok;
-    for (int i = 0; i < max_tokens; i++) {
-        if (llama_decode(g_ctx, batch) != 0) {
-            LOGE("llama_decode failed at step %d", i);
-            break;
-        }
-        tok = llama_sampler_sample(smpl, g_ctx, -1);
+    for (int i = 0; i < max_tokens && !g_cancel; i++) {
+        llama_token tok = llama_sampler_sample(smpl, g_ctx, -1);
         if (llama_vocab_is_eog(vocab, tok)) break;
         char piece[256];
         int n = llama_token_to_piece(vocab, tok, piece, sizeof(piece), 0, false);
         if (n > 0) out.append(piece, n);
-        batch = llama_batch_get_one(&tok, 1);
+        bool stopped = false;
+        for (const auto & stop : stops) {
+            if (!stop.empty() && out.size() >= stop.size() && out.compare(out.size() - stop.size(), stop.size(), stop) == 0) {
+                stopped = true;
+                break;
+            }
+        }
+        if (stopped || i + 1 == max_tokens) break;
+        if (llama_decode(g_ctx, llama_batch_get_one(&tok, 1)) != 0) {
+            LOGE("llama_decode failed at step %d", i);
+            break;
+        }
+        g_cached.push_back(tok);
     }
 
     llama_sampler_free(smpl);
     return out;
 }
 
+std::string generate(const std::string & user, int max_tokens, float temperature) {
+    if (g_model == nullptr || g_ctx == nullptr) {
+        return "[Qwen Coder] Model is not loaded.";
+    }
+    return generate_raw(apply_template(user), max_tokens, temperature, {});
+}
+
 void free_model() {
+    g_cached.clear();
     if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
     if (g_model) { llama_model_free(g_model); g_model = nullptr; }
 }
@@ -198,7 +237,7 @@ Java_com_codesurfer_mobileide_QwenCoderEngineBridge_nativeInitialize(JNIEnv * en
     const int n_threads = (int) std::max(1u, std::min(std::thread::hardware_concurrency(), 8u));
     llama_context_params cparams = llama_context_default_params();
     cparams.n_ctx = context_size > 0 ? (uint32_t) context_size : 4096;
-    cparams.n_batch = cparams.n_ctx;
+    cparams.n_batch = 512;
     cparams.n_threads = n_threads;
     cparams.n_threads_batch = n_threads;
     g_ctx = llama_init_from_model(g_model, cparams);
@@ -248,6 +287,23 @@ Java_com_codesurfer_mobileide_QwenCoderEngineBridge_nativeCompleteCode(JNIEnv * 
 JNIEXPORT jstring JNICALL
 Java_com_codesurfer_mobileide_QwenCoderEngineBridge_nativeChat(JNIEnv * env, jobject, jstring message, jint max_tokens) {
     return to_jstring(env, generate(to_std(env, message), max_tokens, 0.7f));
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_codesurfer_mobileide_QwenCoderEngineBridge_nativeGenerateRaw(JNIEnv * env, jobject, jstring prompt, jobjectArray jstops, jint max_tokens, jfloat temperature) {
+    std::vector<std::string> stops;
+    const jsize n = jstops ? env->GetArrayLength(jstops) : 0;
+    for (jsize i = 0; i < n; i++) {
+        auto js = (jstring) env->GetObjectArrayElement(jstops, i);
+        stops.push_back(to_std(env, js));
+        env->DeleteLocalRef(js);
+    }
+    return to_jstring(env, generate_raw(to_std(env, prompt), max_tokens, temperature, stops));
+}
+
+JNIEXPORT void JNICALL
+Java_com_codesurfer_mobileide_QwenCoderEngineBridge_nativeCancel(JNIEnv *, jobject) {
+    g_cancel = true;
 }
 
 JNIEXPORT void JNICALL
