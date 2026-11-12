@@ -111,6 +111,26 @@ public class QwenCoderModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
+    public void complete(String prompt, ReadableArray stops, int maxTokens, double temperature, Promise promise) {
+        runAsync(promise, "COMPLETE_ERROR", "Failed to run model: ", () -> {
+            long start = System.currentTimeMillis();
+            String[] stopArr = new String[stops == null ? 0 : stops.size()];
+            for (int i = 0; i < stopArr.length; i++) stopArr[i] = stops.getString(i);
+            String response = engineBridge.generateRaw(prompt, stopArr, maxTokens, (float) temperature);
+            WritableMap result = Arguments.createMap();
+            result.putString("response", response);
+            result.putDouble("durationMs", System.currentTimeMillis() - start);
+            return result;
+        });
+    }
+
+    @ReactMethod
+    public void cancel(Promise promise) {
+        engineBridge.cancel();
+        promise.resolve(true);
+    }
+
+    @ReactMethod
     public void completeCode(String code, String language, int maxTokens, Promise promise) {
         runAsync(promise, "CODE_COMPLETION_ERROR", "Failed to complete code: ", () -> {
             WritableMap result = Arguments.createMap();

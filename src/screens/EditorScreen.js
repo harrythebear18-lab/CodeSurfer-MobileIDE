@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   ScrollView,
   TextInput,
+  Alert,
 } from 'react-native';
 import { Appbar, IconButton, Menu } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,7 @@ const EditorScreen = ({ route, navigation }) => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [scrollY, setScrollY] = useState(0);
   const editorRef = useRef(null);
   const lineNumbersRef = useRef(null);
@@ -45,7 +47,9 @@ const EditorScreen = ({ route, navigation }) => {
       setLanguage(detectedLanguage);
     } catch (error) {
       console.error('Error loading file:', error);
-      setContent('// Error loading file\n');
+      setLoadError(error.message || String(error));
+      setContent('');
+      Alert.alert('Could not open file', `${currentFile}\n\n${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -75,7 +79,11 @@ const EditorScreen = ({ route, navigation }) => {
   const saveFile = async () => {
     try {
       if (!currentFilePath) {
-        console.log('Save as functionality not implemented yet');
+        Alert.alert('Not saved', 'Open or create a file from the File Manager to save it.');
+        return;
+      }
+      if (loadError) {
+        Alert.alert('Not saved', 'This file could not be opened, so saving was blocked to avoid overwriting it.');
         return;
       }
 
@@ -91,6 +99,7 @@ const EditorScreen = ({ route, navigation }) => {
       console.log('File saved successfully');
     } catch (error) {
       console.error('Error saving file:', error);
+      Alert.alert('Save failed', error.message || String(error));
     }
   };
 
@@ -153,6 +162,8 @@ const EditorScreen = ({ route, navigation }) => {
         {renderLineNumbers()}
         <ScrollView
           style={styles.editorScroll}
+          contentContainerStyle={styles.editorScrollContent}
+          keyboardShouldPersistTaps="handled"
           onScroll={handleScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={true}
@@ -178,6 +189,7 @@ const EditorScreen = ({ route, navigation }) => {
       <View style={styles.bottomBar}>
         <View style={styles.statusBar}>
           <Text style={styles.statusText}>Lines: {lineCount}</Text>
+          <Text style={styles.statusText}>{hasUnsavedChanges ? 'Unsaved' : 'Saved'}</Text>
           <Text style={styles.statusText}>UTF-8</Text>
           <Text style={styles.statusText}>{language}</Text>
         </View>
@@ -213,6 +225,8 @@ const styles = StyleSheet.create({
   },
   lineNumbersScroll: {
     width: 50,
+    flexGrow: 0,
+    flexShrink: 0,
     backgroundColor: '#1A1A1A',
   },
   lineNumbersContent: {
@@ -229,6 +243,9 @@ const styles = StyleSheet.create({
   editorScroll: {
     flex: 1,
     backgroundColor: '#1E1E1E',
+  },
+  editorScrollContent: {
+    flexGrow: 1,
   },
   editorInput: {
     flex: 1,

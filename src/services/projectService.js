@@ -1,5 +1,6 @@
 import { FileSystemService } from './fileSystemService';
 import * as FileSystem from 'expo-file-system';
+import { FilePermissionService } from './filePermissionService';
 
 export class ProjectService {
   static projectTemplates = {
@@ -341,6 +342,11 @@ main {
   static async createProject(name, template, basePath) {
     try {
       const projectPath = `${basePath}${name}/`;
+
+      const existing = await FileSystem.getInfoAsync(projectPath);
+      if (existing.exists) {
+        throw new Error(`A project named "${name}" already exists`);
+      }
       
       // Create project directory
       await FileSystemService.createDirectory(projectPath);
@@ -378,6 +384,37 @@ main {
       console.error('Error creating project:', error);
       throw error;
     }
+  }
+
+  // Older builds created projects directly in documentDirectory, which the
+  // File Manager and AI tools cannot reach. Move them into the user workspace.
+  static async migrateLegacyProjects() {
+    const workspace = FilePermissionService.getUserAccessibleDirectory();
+    const projects = await FileSystemService.getRecentProjects();
+    let changed = false;
+    for (const project of projects) {
+      if (!project.path || project.path.startsWith(workspace) || !project.path.startsWith(FileSystem.documentDirectory)) continue;
+      const rel = project.path.slice(FileSystem.documentDirectory.length).replace(/\/+$/, '');
+      if (!rel || rel.includes('/')) continue;
+      try {
+        const info = await FileSystem.getInfoAsync(project.path);
+        if (!info.exists || !info.isDirectory) continue;
+        let target = `${workspace}${rel}/`;
+        for (let n = 2; (await FileSystem.getInfoAsync(target)).exists; n++) {
+          target = `${workspace}${rel}-${n}/`;
+        }
+        await FileSystem.makeDirectoryAsync(workspace, { intermediates: true });
+        await FileSystem.moveAsync({ from: project.path.replace(/\/+$/, ''), to: target.replace(/\/+$/, '') });
+        project.path = target;
+        changed = true;
+      } catch (error) {
+        console.error(`Error moving project ${project.path}:`, error);
+      }
+    }
+    if (changed) {
+      await FileSystemService.writeFile(`${FileSystem.documentDirectory}recent_projects.json`, JSON.stringify(projects, null, 2));
+    }
+    return projects;
   }
 
   static async openProject(projectPath) {

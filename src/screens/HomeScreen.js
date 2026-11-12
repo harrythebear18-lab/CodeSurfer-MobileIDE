@@ -12,6 +12,7 @@ import { TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
 import { ProjectService } from '../services/projectService';
+import { FilePermissionService } from '../services/filePermissionService';
 import * as FileSystem from 'expo-file-system';
 
 const HomeScreen = ({ navigation }) => {
@@ -94,7 +95,7 @@ const HomeScreen = ({ navigation }) => {
       const result = await thunks.createProject(
         projectName,
         selectedTemplate,
-        FileSystem.documentDirectory
+        FilePermissionService.getUserAccessibleDirectory()
       );
       
       Alert.alert('Success', `Project "${projectName}" created successfully`);
@@ -102,9 +103,9 @@ const HomeScreen = ({ navigation }) => {
       setProjectName('');
       
       // Navigate to file manager with the new project
-      navigation.navigate('FileManager');
+      navigation.navigate('FileManager', { path: result.project.path });
     } catch (error) {
-      Alert.alert('Error', 'Failed to create project');
+      Alert.alert('Error', error.message || 'Failed to create project');
     }
   };
 
@@ -112,12 +113,7 @@ const HomeScreen = ({ navigation }) => {
     try {
       await thunks.openProject(project.path);
       
-      // Navigate to appropriate screen based on project type
-      if (project.type === 'android') {
-        navigation.navigate('Compiler', { projectPath: project.path });
-      } else {
-        navigation.navigate('FileManager');
-      }
+      navigation.navigate('FileManager', { path: project.path });
     } catch (error) {
       Alert.alert('Error', 'Failed to open project');
     }
@@ -162,7 +158,7 @@ const HomeScreen = ({ navigation }) => {
           </Card>
         ) : (
           recentProjects.map((project, index) => (
-            <Card key={project.path || index} style={styles.projectCard}>
+            <Card key={project.path || index} style={styles.projectCard} onPress={() => openProject(project)}>
               <Card.Content>
                 <View style={styles.projectHeader}>
                   <Text style={styles.projectName}>{project.name}</Text>

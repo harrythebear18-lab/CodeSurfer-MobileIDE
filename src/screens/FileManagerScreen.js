@@ -12,12 +12,13 @@ import { Appbar, Button, IconButton, FAB, Portal, Modal } from 'react-native-pap
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import { SecureFileSystemService } from '../services/secureFileSystemService';
+import { FileSystemService } from '../services/fileSystemService';
 import { FilePermissionService } from '../services/filePermissionService';
 
-const FileManagerScreen = ({ navigation }) => {
+const FileManagerScreen = ({ navigation, route }) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentPath, setCurrentPath] = useState(FileSystem.documentDirectory);
+  const [currentPath, setCurrentPath] = useState(route?.params?.path || FileSystem.documentDirectory);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newFileName, setNewFileName] = useState('');
@@ -45,7 +46,7 @@ const FileManagerScreen = ({ navigation }) => {
       case 'css':
         return 'logo-css3';
       case 'json':
-        return 'code-json';
+        return 'code-slash-outline';
       case 'md':
         return 'document-text-outline';
       default:
@@ -81,6 +82,10 @@ const FileManagerScreen = ({ navigation }) => {
   };
 
   useEffect(() => {
+    if (route?.params?.path) setCurrentPath(route.params.path);
+  }, [route?.params?.path]);
+
+  useEffect(() => {
     loadFiles();
     checkAdminStatus();
   }, [currentPath]);
@@ -92,7 +97,9 @@ const FileManagerScreen = ({ navigation }) => {
     // Update current path based on user permissions
     if (!adminStatus) {
       const userDir = await FilePermissionService.getUserAccessibleDirectory();
-      setCurrentPath(userDir);
+      if (!currentPath.startsWith(userDir)) {
+        setCurrentPath(userDir);
+      }
     }
   };
 
@@ -130,9 +137,25 @@ const FileManagerScreen = ({ navigation }) => {
       return;
     }
 
+    if (/[\\/]/.test(newFileName) || newFileName.trim() === '.' || newFileName.trim() === '..') {
+      Alert.alert('Error', 'Name cannot contain / or be . or ..');
+      return;
+    }
+
     try {
-      const itemPath = `${currentPath}${newFileName}`;
-      
+      const itemPath = `${currentPath}${newFileName.trim()}`;
+
+      if (newFileType === 'file' && !(await FilePermissionService.canCreateFile(itemPath, newFileName.trim()))) {
+        Alert.alert('Unsupported file type', 'Add a code or text extension, e.g. .js, .py, .txt, .md');
+        return;
+      }
+
+      const existing = await FileSystem.getInfoAsync(itemPath);
+      if (existing.exists) {
+        Alert.alert('Already exists', `${newFileName.trim()} already exists here`);
+        return;
+      }
+
       if (newFileType === 'file') {
         await FileSystemService.createFile(itemPath, '');
       } else {
@@ -203,7 +226,7 @@ const FileManagerScreen = ({ navigation }) => {
           </Text>
         </View>
         <IconButton
-          icon="chevron-forward"
+          icon="chevron-right"
           size={20}
           iconColor="#666"
         />

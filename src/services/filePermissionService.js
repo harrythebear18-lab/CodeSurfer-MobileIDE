@@ -43,11 +43,20 @@ export class FilePermissionService {
   static isProtectedPath(filePath) {
     // Normalize path
     const normalizedPath = filePath.replace(/\\/g, '/');
+
+    // The user's own workspace is never protected (e.g. a project's own src/ folder)
+    if (normalizedPath.startsWith(this.getUserAccessibleDirectory())) {
+      return false;
+    }
     
     // Check if path contains any protected directories
     return this.PROTECTED_DIRECTORIES.some(dir => 
       normalizedPath.includes(dir) || normalizedPath.startsWith(dir)
     );
+  }
+
+  static isInUserWorkspace(filePath) {
+    return !!filePath && filePath.replace(/\\/g, '/').startsWith(this.getUserAccessibleDirectory());
   }
 
   // Check if file has allowed extension
@@ -78,7 +87,7 @@ export class FilePermissionService {
       }
       
       // Only show files with allowed extensions
-      if (!item.isDirectory && !this.isAllowedFile(item.name)) {
+      if (!item.isDirectory && !this.isInUserWorkspace(item.path) && !this.isAllowedFile(item.name)) {
         return false;
       }
       
@@ -100,7 +109,7 @@ export class FilePermissionService {
     }
 
     // Regular users can only read allowed file types
-    if (!this.isAllowedFile(fileName)) {
+    if (!this.isInUserWorkspace(filePath) && !this.isAllowedFile(fileName)) {
       return false;
     }
 
@@ -121,7 +130,7 @@ export class FilePermissionService {
     }
 
     // Regular users can only write allowed file types
-    if (!this.isAllowedFile(fileName)) {
+    if (!this.isInUserWorkspace(filePath) && !this.isAllowedFile(fileName)) {
       return false;
     }
 
@@ -142,7 +151,7 @@ export class FilePermissionService {
     }
 
     // Regular users can only delete allowed file types
-    if (!this.isAllowedFile(fileName)) {
+    if (!this.isInUserWorkspace(filePath) && !this.isAllowedFile(fileName)) {
       return false;
     }
 
@@ -163,7 +172,7 @@ export class FilePermissionService {
     }
 
     // Regular users can only create allowed file types
-    if (!this.isAllowedFile(fileName)) {
+    if (!this.isInUserWorkspace(filePath) && !this.isAllowedFile(fileName)) {
       return false;
     }
 

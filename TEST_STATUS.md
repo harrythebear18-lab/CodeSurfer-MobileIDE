@@ -30,9 +30,43 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 | AI Chat screen answers a prompt end to end through the React Native UI (correct `is_prime` function). Took ~300 s on the x86_64 emulator (software CPU); S24 speed not measured yet. | emulator, in-app (see PR #1) |
 | 7B download refuses to start when free space is too low (message shows needed vs free). | emulator, in-app |
 
-## ❌ KNOWN BROKEN (reported on device, 2026-11-10)
+## 🔧 FIXED, awaiting S24 re-test (2026-11-12)
 
-- **Files: create/open fails, and there is no way to type into a file.** Reported by Harry on the S24 with the 79 MB APK (`7274f32`). The app opens fine; the file workflow does not work. Cause not investigated yet, no code changed for it. Start here next.
+- **Files: create/open fails, and there is no way to type into a file.** Reported by Harry on the S24 with the 79 MB APK (`7274f32`). Reproduced on the emulator (File Manager → + → `hello.js` → "Failed to create file"). Causes and fixes:
+  - `FileManagerScreen.js` called `FileSystemService.createFile/createDirectory/deleteFileOrDirectory` but never imported `FileSystemService` → every create, new-folder and delete threw. Added the import.
+  - `checkAdminStatus()` ran on every path change and reset non-admin users to `user_projects/`, and `SecureFileSystemService.getDirectoryContents()` always listed `user_projects/` → you could never enter a folder. Both now keep any path inside `user_projects/`.
+  - Editor: the line-number `ScrollView` grew to half the screen (RN ScrollView default `flexGrow: 1`) and the `TextInput` was a thin strip at the top, so tapping the editor did nothing. Line numbers fixed at 50 px; editor content now fills the screen.
+  - Create now rejects names containing `/` or `.`/`..`, and file types the permission layer would hide (with a message instead of silently vanishing).
+  - File row chevron used a non-existent icon name (`chevron-forward`) and showed `?`. Now `chevron-right`.
+- **Verified on emulator (release APK, through the UI):** create `hello.js` → listed → open → type → save → back out → reopen shows saved text (32 bytes); create folder `myproj` → enter it → create `app.py` inside → listed there.
+- **Not verified:** the S24 itself. Harry to re-test with the new APK.
+- **Seen but not investigated:** on the emulator, Login said "No account found" for an email that Sign Up said "already exists" (account made with an older build). New sign-up and login worked.
+
+## 🔧 Home → New Project: project unusable after creation (2026-11-12, awaiting S24 re-test)
+
+- **Reported by Harry on the S24 after the fix above:** "New project, create the project, then cannot do anything with the project." The emulator check above only used the File Manager's own create button, so it missed this.
+- **Causes and fixes:**
+  - `HomeScreen.js` created projects in `documentDirectory`, but the File Manager (for non-admin users) and the AI tools only work inside `documentDirectory/user_projects/`. The project was never listed and its files could not be opened. Projects are now created in `FilePermissionService.getUserAccessibleDirectory()`.
+  - Projects made by older builds are moved into `user_projects/` at startup (`ProjectService.migrateLegacyProjects()`, which also updates `recent_projects.json`). If the name is taken, `-2`, `-3`... is added.
+  - After creating a project, and when opening one from Recent Projects, the File Manager now opens inside that project. Before, it opened at the top folder, and Android projects opened the (simulated) Compiler screen. The whole Recent Projects card can now be tapped, not just the small chevron.
+  - Inside `user_projects/`, every file type can be listed, opened and edited. The extension allow-list hid template files such as `build.gradle`, `settings.gradle` and `gradle.properties`. The allow-list still applies outside the workspace, and to AI tool writes.
+  - Creating a project with a name that already exists now shows an error instead of overwriting files.
+  - Editor: a failed load now shows an alert and blocks saving (before, it showed "// Error loading file" and a save would overwrite the real file). Save failures show an alert, and the status bar shows Saved/Unsaved. `.json` files now have a real icon instead of `?`.
+- **Verified on emulator (release APK, through the UI):** a project made by the previous build (`webapp`) was moved into `user_projects/` on launch. It opened from Recent Projects, and `App.js` was edited, saved and reopened with the edit kept. New Project → Android App `droidapp` → File Manager opens inside it, showing `app/`, `build.gradle`, `settings.gradle` and `gradle.properties` → went into `app/src/main/java/com/example/app/` → edited `MainActivity.java` → Save → status "Saved" → reopened with the edit kept.
+- **Not verified:** the S24 itself.
+
+## 🤖 AI Chat agent: tool calling + plan/feedback loop (2026-11-12, awaiting S24 test)
+
+AI Chat is now an agent: the model can read, search and edit files in `user_projects/` and loops plan -> tool -> result -> check until done.
+- **Code:** `src/services/agentTools.js` (tools, sandbox, diffs, approved writes), `src/services/agentService.js` (agent loop, Qwen ChatML prompt, tool-call parser, local + Ollama backends), `src/screens/AIChatScreen.js` (UI). Native: `QwenCoderModule.complete()/cancel()` -> `QwenCoderEngineBridge.generateRaw()` -> `qwen_jni.cpp nativeGenerateRaw/nativeCancel` (raw prompt, stop strings, KV-cache prefix reuse, context 8192, batch 512).
+- **Tools:** `list_files`, `read_file`, `search_files`, `create_file`, `edit_file` (find/replace, whitespace-tolerant, keeps file formatting), `write_file`, `update_plan`. No run/terminal tool: build/npm/git in the app are still simulated.
+- **Safety:** paths must be relative to `user_projects/`; absolute paths, URIs and `..` escapes are rejected. Every write shows a diff and waits for Approve/Reject (on by default; toggle in AI Chat settings). After a write the file is read back and compared. Rejected changes are not written and the model is told not to retry. Stop button cancels generation and pending approvals. 12-step limit.
+- **Plan checklist:** shown as a card; the app ticks a step after each successful tool action. Settings: Auto (on for 7B/Ollama, off for 1.5B), On, Off.
+- **Engines:** On-device (llama.cpp) or Ollama server (URL + model + "Test connection" in AI Chat settings; uses Ollama native tool calling via `/api/chat`).
+- **Verified on emulator (release APK, through the UI, 1.5B):** "Create the file calc/math.js with a JavaScript add function." -> `create_file` card -> diff approval card -> Approve -> written and read back -> `read_file` check -> summary (44 s for the last turn).
+- **Verified on the VM (host llama.cpp, same model files, test harness driving `agentService.js`):** 1.5B fixed a bug in `calc/math.js` in 4/4 runs with no-plan mode; path sandbox, edit matching, parser and prompt unit checks pass. 7B with the plan checklist planned correctly but needed extra nudges; not yet a reliable multi-step pass.
+- **Not verified:** speed and behaviour on the S24; Ollama tool calling against a real Ollama server (code written to Ollama's documented `/api/chat` tool format, no server was available here); 7B in-app.
+- **Honest limits:** the 1.5B handles simple one-file tasks; multi-step tasks often go wrong. 7B is better but slower. It is a helper, not a full coding agent.
 
 ## ❓ NOT YET VERIFIED
 
