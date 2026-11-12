@@ -42,6 +42,12 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 - **Not verified:** the S24 itself. Harry to re-test with the new APK.
 - **Seen but not investigated:** on the emulator, Login said "No account found" for an email that Sign Up said "already exists" (account made with an older build). New sign-up and login worked.
 
+## 🐞 Open items reported by Harry on the S24 (2026-11-12, not started)
+
+- **Bug: Settings button crashes the app.** Seen on the S24 with the APK built from `d335bb2` (same code as `user-side` `a652bea`). Not reproduced or investigated yet. It isn't known which Settings button (the Home tile or the AI Chat gear).
+- **Feature request: a Sessions tab, or similar.** Not designed yet.
+- Apart from these, Harry reports that file create/open/edit and the New Project flow now work on the S24. Full testing is still in progress.
+
 ## 🔧 Home → New Project: project unusable after creation (2026-11-12, awaiting S24 re-test)
 
 - **Reported by Harry on the S24 after the fix above:** "New project, create the project, then cannot do anything with the project." The emulator check above only used the File Manager's own create button, so it missed this.
