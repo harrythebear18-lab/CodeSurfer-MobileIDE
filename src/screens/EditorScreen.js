@@ -153,6 +153,8 @@ const EditorScreen = ({ route, navigation }) => {
         {renderLineNumbers()}
         <ScrollView
           style={styles.editorScroll}
+          contentContainerStyle={styles.editorScrollContent}
+          keyboardShouldPersistTaps="handled"
           onScroll={handleScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={true}
@@ -213,6 +215,8 @@ const styles = StyleSheet.create({
   },
   lineNumbersScroll: {
     width: 50,
+    flexGrow: 0,
+    flexShrink: 0,
     backgroundColor: '#1A1A1A',
   },
   lineNumbersContent: {
@@ -229,6 +233,9 @@ const styles = StyleSheet.create({
   editorScroll: {
     flex: 1,
     backgroundColor: '#1E1E1E',
+  },
+  editorScrollContent: {
+    flexGrow: 1,
   },
   editorInput: {
     flex: 1,

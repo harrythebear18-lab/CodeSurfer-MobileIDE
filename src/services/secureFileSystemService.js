@@ -8,7 +8,8 @@ export class SecureFileSystemService {
     try {
       // Get user's accessible directory based on permissions
       const isAdmin = await FilePermissionService.isAdminUser();
-      const accessiblePath = isAdmin ? path : await FilePermissionService.getUserAccessibleDirectory();
+      const userDir = FilePermissionService.getUserAccessibleDirectory();
+      const accessiblePath = isAdmin || (path && path.startsWith(userDir)) ? path : userDir;
       
       // Ensure user workspace exists for non-admin users
       if (!isAdmin) {

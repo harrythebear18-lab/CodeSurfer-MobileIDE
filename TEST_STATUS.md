@@ -30,9 +30,17 @@ Evidence level noted per line. "Device" = Harry's Samsung S24 Ultra; "emulator" 
 | AI Chat screen answers a prompt end to end through the React Native UI (correct `is_prime` function). Took ~300 s on the x86_64 emulator (software CPU); S24 speed not measured yet. | emulator, in-app (see PR #1) |
 | 7B download refuses to start when free space is too low (message shows needed vs free). | emulator, in-app |
 
-## ❌ KNOWN BROKEN (reported on device, 2026-11-10)
+## 🔧 FIXED, awaiting S24 re-test (2026-11-12)
 
-- **Files: create/open fails, and there is no way to type into a file.** Reported by Harry on the S24 with the 79 MB APK (`7274f32`). The app opens fine; the file workflow does not work. Cause not investigated yet, no code changed for it. Start here next.
+- **Files: create/open fails, and there is no way to type into a file.** Reported by Harry on the S24 with the 79 MB APK (`7274f32`). Reproduced on the emulator (File Manager → + → `hello.js` → "Failed to create file"). Causes and fixes:
+  - `FileManagerScreen.js` called `FileSystemService.createFile/createDirectory/deleteFileOrDirectory` but never imported `FileSystemService` → every create, new-folder and delete threw. Added the import.
+  - `checkAdminStatus()` ran on every path change and reset non-admin users to `user_projects/`, and `SecureFileSystemService.getDirectoryContents()` always listed `user_projects/` → you could never enter a folder. Both now keep any path inside `user_projects/`.
+  - Editor: the line-number `ScrollView` grew to half the screen (RN ScrollView default `flexGrow: 1`) and the `TextInput` was a thin strip at the top, so tapping the editor did nothing. Line numbers fixed at 50 px; editor content now fills the screen.
+  - Create now rejects names containing `/` or `.`/`..`, and file types the permission layer would hide (with a message instead of silently vanishing).
+  - File row chevron used a non-existent icon name (`chevron-forward`) and showed `?`. Now `chevron-right`.
+- **Verified on emulator (release APK, through the UI):** create `hello.js` → listed → open → type → save → back out → reopen shows saved text (32 bytes); create folder `myproj` → enter it → create `app.py` inside → listed there.
+- **Not verified:** the S24 itself. Harry to re-test with the new APK.
+- **Seen but not investigated:** on the emulator, Login said "No account found" for an email that Sign Up said "already exists" (account made with an older build). New sign-up and login worked.
 
 ## ❓ NOT YET VERIFIED
 
