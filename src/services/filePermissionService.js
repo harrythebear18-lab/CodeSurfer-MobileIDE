@@ -43,6 +43,11 @@ export class FilePermissionService {
   static isProtectedPath(filePath) {
     // Normalize path
     const normalizedPath = filePath.replace(/\\/g, '/');
+
+    // The user's own workspace is never protected (e.g. a project's own src/ folder)
+    if (normalizedPath.startsWith(this.getUserAccessibleDirectory())) {
+      return false;
+    }
     
     // Check if path contains any protected directories
     return this.PROTECTED_DIRECTORIES.some(dir => 

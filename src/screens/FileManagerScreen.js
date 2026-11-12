@@ -146,6 +146,12 @@ const FileManagerScreen = ({ navigation }) => {
         return;
       }
 
+      const existing = await FileSystem.getInfoAsync(itemPath);
+      if (existing.exists) {
+        Alert.alert('Already exists', `${newFileName.trim()} already exists here`);
+        return;
+      }
+
       if (newFileType === 'file') {
         await FileSystemService.createFile(itemPath, '');
       } else {
